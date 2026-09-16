@@ -132,7 +132,7 @@ interface PreviewAdapter {
   lens?: LensAdapter          // magnification + lens size (images)
   pages?: PageNavigation      // page, pageCount, previous/next/goToPage
   fit?: FitControls           // fitWidth / fitPage / actualSize
-  rotate?: RotateControls     // clockwise / counter-clockwise
+  rotate?: RotateControls     // clockwise / counter-clockwise / reset rotation
   sheets?: SheetNavigation    // tabs, switchSheet
   search?: SearchControls     // search(query), resultCount, clear
   text?: TextControls         // copy, word-wrap

@@ -42,6 +42,9 @@ export interface ThumbnailControls {
 export interface RotateControls {
   rotateClockwise(): void
   rotateCounterclockwise(): void
+  /** Return the preview subject to its original 0° orientation. Optional:
+   *  renderers that can't reset (or have nothing to reset) may omit it. */
+  resetRotation?(): void
 }
 
 export interface SheetNavigation {

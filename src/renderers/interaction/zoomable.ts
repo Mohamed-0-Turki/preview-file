@@ -7,6 +7,9 @@ export interface ZoomableOptions {
 
 export interface Zoomable {
   readonly scale: number
+  /** Current rotation in degrees, normalized to a multiple of 90. */
+  readonly rotation: number
+  setRotation(degrees: number): void
   zoomIn(): void
   zoomOut(): void
   resetZoom(): void
@@ -25,6 +28,24 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
+function normalizeDegrees(degrees: number): number {
+  return ((degrees % 360) + 360) % 360
+}
+
+/** Rotate a point around the origin (matching the CSS `rotate()` transform). */
+function rotatePoint(x: number, y: number, degrees: number): [number, number] {
+  switch (normalizeDegrees(degrees)) {
+    case 90:
+      return [-y, x]
+    case 180:
+      return [-x, -y]
+    case 270:
+      return [y, -x]
+    default:
+      return [x, y]
+  }
+}
+
 export function createZoomable(
   viewport: HTMLElement,
   content: HTMLElement,
@@ -36,6 +57,7 @@ export function createZoomable(
   const transitionMs = options.transitionMs ?? DEFAULT_TRANSITION_MS
 
   let scale = 1
+  let rotation = 0
   let translateX = 0
   let translateY = 0
 
@@ -52,28 +74,49 @@ export function createZoomable(
   let transitionTimer: number | undefined
 
   content.style.transformOrigin = '0 0'
-  content.style.transform = 'translate(0px, 0px) scale(1)'
+  content.style.transform = `translate(0px, 0px) rotate(${rotation}deg) scale(1)`
   content.style.touchAction = 'none'
   content.style.userSelect = 'none'
 
   function applyTransform(): void {
-    content.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`
+    content.style.transform = `translate(${translateX}px, ${translateY}px) rotate(${rotation}deg) scale(${scale})`
+  }
+
+  /** Translate values that keep the content centered at the given scale. When
+   *  the image is rotated the origin-relative rotation shifts the visual box,
+   *  so centering is no longer `translate(0, 0)`. */
+  function centeredTranslation(nextScale: number): [number, number] {
+    const width = content.offsetWidth
+    const height = content.offsetHeight
+    const [rotatedCenterX, rotatedCenterY] = rotatePoint(
+      (width / 2) * nextScale,
+      (height / 2) * nextScale,
+      rotation
+    )
+    return [width / 2 - rotatedCenterX, height / 2 - rotatedCenterY]
   }
 
   function clampTranslate(x: number, y: number, nextScale: number): void {
-    if (nextScale <= minScale) {
-      translateX = 0
-      translateY = 0
-      return
-    }
     const viewportWidth = viewport.clientWidth
     const viewportHeight = viewport.clientHeight
-    const contentWidth = content.offsetWidth * nextScale
-    const contentHeight = content.offsetHeight * nextScale
+    const [centerX, centerY] = centeredTranslation(nextScale)
+    const contentWidth = (rotation % 180 === 0 ? content.offsetWidth : content.offsetHeight) * nextScale
+    const contentHeight = (rotation % 180 === 0 ? content.offsetHeight : content.offsetWidth) * nextScale
     const maxX = Math.max(0, (contentWidth - viewportWidth) / 2)
     const maxY = Math.max(0, (contentHeight - viewportHeight) / 2)
-    translateX = clamp(x, -maxX, maxX)
-    translateY = clamp(y, -maxY, maxY)
+    translateX = clamp(x, centerX - maxX, centerX + maxX)
+    translateY = clamp(y, centerY - maxY, centerY + maxY)
+  }
+
+  function setRotation(nextDegrees: number): void {
+    const next = normalizeDegrees(nextDegrees)
+    if (next === rotation) return
+    content.style.transition = ''
+    window.clearTimeout(transitionTimer)
+    rotation = next
+    clampTranslate(translateX, translateY, scale)
+    applyTransform()
+    updateCursor()
   }
 
   function setScale(nextScale: number, anchorX?: number, anchorY?: number): void {
@@ -212,6 +255,10 @@ export function createZoomable(
     get scale() {
       return scale
     },
+    get rotation() {
+      return rotation
+    },
+    setRotation,
     zoomIn,
     zoomOut,
     resetZoom,

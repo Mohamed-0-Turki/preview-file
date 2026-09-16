@@ -1,6 +1,6 @@
 {
   "name": "@mohamed-0-turki/preview-file",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A framework-agnostic file preview library for images, PDFs, documents, spreadsheets, text files, and more.",
   "type": "module",
   "main": "./dist/index.js",

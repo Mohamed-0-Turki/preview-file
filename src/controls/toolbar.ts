@@ -681,6 +681,14 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
             refresh()
           })
         )
+        if (actions.rotate.resetRotation) {
+          row.appendChild(
+            makeButton(ICONS.reset, 'Reset rotation', () => {
+              actions.rotate?.resetRotation?.()
+              refresh()
+            })
+          )
+        }
       }
       if (actions.thumbnails) {
         const thumbnails = makeButton(ICONS.thumbnails, 'Show thumbnails', () => {

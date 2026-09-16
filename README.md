@@ -207,7 +207,7 @@ After a successful render, `preview()` mounts a floating, liquid-glass toolbar i
 - **Pages** — previous / next / go-to-page (PDF, Word)
 - **View** — continuous ↔ single page (PDF, Word), thumbnails
 - **Zoom** — zoom in/out, reset, fit width / fit page / actual size, live % indicator
-- **Rotate** — clockwise / counter-clockwise (PDF)
+- **Rotate** — clockwise / counter-clockwise / reset rotation (PDF, images)
 - **Sheet** — sheet tabs (Excel, CSV)
 - **Search** — in-sheet/in-document search with result count (Excel, CSV, PDF)
 - **Text** — copy, word-wrap (text)
