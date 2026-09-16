@@ -1,5 +1,6 @@
 import type { PreviewAdapter, PageNavigation } from '../controls/types.js'
 import type { PreviewOptions, PreviewResult } from '../types.js'
+import { resolvePdfWorkerSrc } from '../pdf-worker.js'
 import { isBlobResultData } from '../previewers/result-types.js'
 import type { Renderer } from './types.js'
 import {
@@ -40,22 +41,13 @@ export class PdfRenderer implements Renderer {
     return type === 'application/pdf'
   }
 
-  async render(container: HTMLElement, result: PreviewResult, _options?: PreviewOptions): Promise<PreviewAdapter> {
+  async render(container: HTMLElement, result: PreviewResult, options?: PreviewOptions): Promise<PreviewAdapter> {
     if (!isBlobResultData(result.data)) {
       throw new Error('The preview result has no PDF data.')
     }
 
     const pdfjs = await import('pdfjs-dist')
-    try {
-      const workerSource = (await import('pdfjs-dist/build/pdf.worker.mjs?raw')).default
-      pdfjs.GlobalWorkerOptions.workerSrc = URL.createObjectURL(
-        new Blob([workerSource as string], { type: 'text/javascript' })
-      )
-    } catch {
-      // The bundler can't expose the worker source (exotic build setups). Leave
-      // workerSrc unset: pdf.js falls back to a main-thread "fake worker" with a
-      // console warning, and the preview still renders.
-    }
+    pdfjs.GlobalWorkerOptions.workerSrc = resolvePdfWorkerSrc(pdfjs.version, options)
 
     const bytes = new Uint8Array(await result.data.blob.arrayBuffer())
     const loadingTask = pdfjs.getDocument({ data: bytes })

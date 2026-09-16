@@ -1,6 +1,7 @@
 import './previewers/index.js'
 
 export { preview, clearPreview } from './preview.js'
+export { setPdfWorkerSrc } from './pdf-worker.js'
 export { getPreviewer, registerPreviewer, clearPreviewers } from './registry.js'
 export { getRenderer, registerRenderer, clearRenderers } from './renderers/index.js'
 export { detectType } from './utils/detect.js'

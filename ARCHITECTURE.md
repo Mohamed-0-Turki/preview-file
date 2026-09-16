@@ -103,7 +103,7 @@ Word and Excel result types are normalized so that renderers don't need to know 
 
 Each renderer is lazy about its heavy dependency:
 
-- PDF → `await import('pdfjs-dist')`; the worker source is pulled in as a raw asset (`pdf.worker.mjs?raw`) and instantiated as a `blob:` worker URL — this works under both Vite and webpack without extra bundler configuration. If the bundler can't expose the worker, pdf.js degrades to a main-thread fake worker.
+- PDF → `await import('pdfjs-dist')`; the worker is *not* bundled. `pdf.worker.mjs` is referenced by URL (`GlobalWorkerOptions.workerSrc`): a version-pinned CDN build by default, overridable via `setPdfWorkerSrc()` or `PreviewOptions.workerSrc` for self-hosted / CSP-locked deployments. This keeps the library free of bundler-specific imports (`?raw`, `?url`, `?worker`) so it resolves identically under Vite, webpack, Rollup, Next.js and vanilla ESM. If the worker URL cannot be loaded, pdf.js falls back to a main-thread fake worker and the preview still renders.
 - Word → `await import('docx-preview')`.
 - Excel → `await import('xlsx')`.
 
@@ -179,6 +179,6 @@ Word documents are paginated by `docx-preview` using *explicit* breaks only (`w:
 
 ## Verification
 
-- `npm run typecheck` — TSC no-emit (the package compiles cleanly, including the `.d.ts` for the pdf.js worker URL).
+- `npm run typecheck` — TSC no-emit (the package compiles cleanly; no bundler-specific module declarations like `*?raw` are required).
 - `npm run build` — emits `dist/`.
 - `npm test` is not scripted; the interactive demo (`site/`) and the manual matrix (PDF/DOCX/XLSX/CSV/images, file/URL/blob sources) are the current smoke layer.

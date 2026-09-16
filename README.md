@@ -28,7 +28,7 @@ Unsupported or oversized files render a retriable error card (with a Download bu
 ## Install
 
 ```bash
-npm install preview-file
+npm install @mohamed-0-turki/preview-file
 ```
 
 The package is ESM-only and ships its own TypeScript types (`dist/index.d.ts`).
@@ -40,7 +40,7 @@ The package is ESM-only and ships its own TypeScript types (`dist/index.d.ts`).
 ## Quick start
 
 ```ts
-import { preview, clearPreview } from 'preview-file'
+import { preview, clearPreview } from '@mohamed-0-turki/preview-file'
 ```
 
 ### From a `File`
@@ -97,6 +97,11 @@ interface PreviewOptions {
   /** Maximum accepted file size, in bytes. Larger files show an error card. */
   maxBytes?: number
 
+  /** URL of the pdf.js worker module (`pdf.worker.mjs`). Use to point a single
+   *  preview at a self-hosted worker, overriding `setPdfWorkerSrc()` and the
+   *  built-in CDN default. */
+  workerSrc?: string
+
   /** Image magnifier (loupe) configuration. */
   magnifier?: {
     lensSize?: number      // lens diameter in px (default 160)
@@ -109,9 +114,89 @@ interface PreviewOptions {
 ```ts
 await preview(file, container, {
   maxBytes: 25 * 1024 * 1024, // 25 MB
+  workerSrc: '/workers/pdf.worker.min.mjs', // optional, self-hosted worker
   magnifier: { lensSize: 180, magnification: 12 },
 })
 ```
+
+---
+
+## PDF rendering & the worker
+
+PDF pages are rendered by [pdf.js](https://mozilla.github.io/pdf.js/), which runs its
+worker in a separate thread via `pdf.worker.mjs`. This package never reads or inlines
+that worker through a bundler-specific import, so it works identically in Vite, Webpack,
+Rollup, Next.js, Nuxt, Remix, Astro and vanilla `<script type="module">`.
+
+**Default worker URL.** The library points pdf.js at a version-pinned copy of the worker
+hosted on a public CDN (`cdn.jsdelivr.net`), so PDF previews work out of the box with no
+bundler configuration. The version always matches the `pdfjs-dist` instance this package
+resolved, so the worker and the pdf.js API can never drift.
+
+**Bring your own worker.** `setPdfWorkerSrc(url)` changes the worker globally; the
+per-preview `options.workerSrc` overrides it for a single call. Provide your own worker
+whenever you:
+
+- self-host your assets (recommended for production), or
+- run behind a [CSP](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP) that blocks
+  third-party scripts, or
+- need to render PDFs offline / in an air-gapped environment.
+
+The worker is only fetched when a PDF is actually rendered — never at import time.
+
+```ts
+// Global option, set once before previewing any PDF:
+import { preview, setPdfWorkerSrc } from '@mohamed-0-turki/preview-file'
+
+setPdfWorkerSrc('/workers/pdf.worker.min.mjs')
+await preview(pdfUrl, container)
+```
+
+```ts
+// Per-preview option:
+await preview(pdfUrl, container, { workerSrc: '/workers/pdf.worker.min.mjs' })
+```
+
+### Making the worker available in each build setup
+
+The worker file lives at `node_modules/pdfjs-dist/build/pdf.worker.min.mjs`. How you serve
+it depends on your setup:
+
+**Vanilla JS / any static server** — copy the file next to your app:
+
+```bash
+cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/workers/
+```
+
+**Vite** — copy or import it as a URL (the library itself never needs `?raw` — this is
+your app's choice, if you want to self-host):
+
+```ts
+import { setPdfWorkerSrc } from '@mohamed-0-turki/preview-file'
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+
+setPdfWorkerSrc(workerUrl as string)
+```
+
+**Next.js** — copy the worker into `public/`:
+
+```bash
+mkdir -p public/workers
+cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/workers/
+```
+
+```ts
+// lib/preview.ts
+import { setPdfWorkerSrc } from '@mohamed-0-turki/preview-file'
+setPdfWorkerSrc('/workers/pdf.worker.min.mjs')
+```
+
+**Webpack** — copy it to your output directory (or use `worker-loader`/`?file-loader`
+semantics) and point at the emitted URL. If the worker is served cross-origin, pdf.js
+wraps it in a same-origin loader automatically.
+
+If the worker URL can't be loaded, pdf.js falls back to running its worker code on the
+main thread (a console warning appears) and the PDF still renders.
 
 ---
 
@@ -143,7 +228,7 @@ Call it in an effect, once per source. Use `clearPreview` on unmount/source chan
 
 ```tsx
 import { useEffect, useRef } from 'react'
-import { preview, clearPreview } from 'preview-file'
+import { preview, clearPreview } from '@mohamed-0-turki/preview-file'
 
 export function FilePreview({ source }: { source: File | string | null }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -188,7 +273,7 @@ export function FilePreview({ source }: { source: File | string | null }) {
 // components/DynamicPreview.tsx
 'use client'
 import { useEffect, useRef } from 'react'
-import { preview, clearPreview } from 'preview-file'
+import { preview, clearPreview } from '@mohamed-0-turki/preview-file'
 
 export default function DynamicPreview({ source }: { source: File | string | null }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -215,7 +300,7 @@ Vue composition:
 ```html
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { preview, clearPreview } from 'preview-file'
+import { preview, clearPreview } from '@mohamed-0-turki/preview-file'
 
 const el = ref<HTMLDivElement>()
 const source = ref<File | null>(null)
@@ -240,7 +325,7 @@ In Nuxt, keep the component in `components/` (client-rendered by default for int
 ```svelte
 <script lang="ts">
   import { onDestroy } from 'svelte'
-  import { preview, clearPreview } from 'preview-file'
+  import { preview, clearPreview } from '@mohamed-0-turki/preview-file'
 
   export let source: File | string | null = null
   let container: HTMLDivElement
@@ -261,7 +346,7 @@ In Nuxt, keep the component in `components/` (client-rendered by default for int
 
 ```ts
 import { Component, ElementRef, OnDestroy, Input, AfterViewInit } from '@angular/core'
-import { preview, clearPreview } from 'preview-file'
+import { preview, clearPreview } from '@mohamed-0-turki/preview-file'
 
 @Component({
   selector: 'app-file-preview',
@@ -292,7 +377,7 @@ export class FilePreviewComponent implements AfterViewInit, OnDestroy {
 <div id="preview" style="width: 100%; height: 70vh"></div>
 
 <script type="module">
-  import { preview, clearPreview } from 'preview-file'
+  import { preview, clearPreview } from '@mohamed-0-turki/preview-file'
 
   const container = document.getElementById('preview')
   let current = null
@@ -320,6 +405,7 @@ export class FilePreviewComponent implements AfterViewInit, OnDestroy {
 | --- | --- |
 | `preview(source, container, options?)` | Resolve, detect, parse, render and mount controls for a file into `container`. Resolves when the preview is mounted (parsing is async). Throws on failure — the container also shows an error card. |
 | `clearPreview(container)` | Tear down the active preview in `container` (controls, renderer state) and empty it. |
+| `setPdfWorkerSrc(url)` | Point pdf.js at a worker module URL (self-hosted, bundler-emitted, or blob). Global; overrides the CDN default. See [PDF rendering & the worker](#pdf-rendering--the-worker). |
 | `getPreviewer(mimeType)` | Return the first previewer that can handle `mimeType`, or `undefined`. |
 | `registerPreviewer(PreviewerConstructor)` | Register a custom previewer (see [Extending](#extending)). |
 | `clearPreviewers()` | Remove all registered previewers. |
@@ -382,8 +468,8 @@ The full pipeline is extensible at both ends: **previewers** turn a file into a 
 ### Custom previewer
 
 ```ts
-import { registerPreviewer, preview } from 'preview-file'
-import type { FileInput, PreviewOptions, PreviewResult } from 'preview-file'
+import { registerPreviewer, preview } from '@mohamed-0-turki/preview-file'
+import type { FileInput, PreviewOptions, PreviewResult } from '@mohamed-0-turki/preview-file'
 
 class MarkdownPreviewer {
   readonly name = 'markdown'
@@ -406,9 +492,9 @@ await preview(markdownFile, container)
 ### Custom renderer
 
 ```ts
-import { registerRenderer } from 'preview-file'
-import type { Renderer, PreviewResult } from 'preview-file'
-import type { PreviewAdapter } from 'preview-file'
+import { registerRenderer } from '@mohamed-0-turki/preview-file'
+import type { Renderer, PreviewResult } from '@mohamed-0-turki/preview-file'
+import type { PreviewAdapter } from '@mohamed-0-turki/preview-file'
 
 class MarkdownRenderer implements Renderer {
   readonly name = 'markdown'

@@ -14,6 +14,10 @@ export interface MagnifierOptions {
 export interface PreviewOptions {
   readonly maxBytes?: number
   readonly magnifier?: MagnifierOptions
+  /** URL of the pdf.js worker module (`pdf.worker.mjs`). Overrides the global
+   *  setting from {@link setPdfWorkerSrc} and the built-in CDN default for a
+   *  single preview call. */
+  readonly workerSrc?: string
 }
 
 export interface FileInput {
