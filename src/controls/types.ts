@@ -40,8 +40,15 @@ export interface ThumbnailControls {
 }
 
 export interface RotateControls {
+  /** Current rotation in degrees, normalized to [0, 360). Only present when
+   *  the renderer can report it. */
+  readonly rotation?: number
   rotateClockwise(): void
   rotateCounterclockwise(): void
+  /** Rotate to an exact degree value. Accepts any real number (negative,
+   *  fractional, > 360); the renderer normalizes it. Optional: renderers that
+   *  only support ±90° steps may omit it. */
+  setRotation?(degrees: number): void
   /** Return the preview subject to its original 0° orientation. Optional:
    *  renderers that can't reset (or have nothing to reset) may omit it. */
   resetRotation?(): void

@@ -119,8 +119,12 @@ export class ImageRenderer implements Renderer {
       zoomOut: () => zoomable.zoomOut(),
       resetZoom: () => zoomable.resetZoom(),
       rotate: {
+        get rotation() {
+          return zoomable.rotation
+        },
         rotateClockwise: () => zoomable.setRotation(zoomable.rotation + 90),
         rotateCounterclockwise: () => zoomable.setRotation(zoomable.rotation - 90),
+        setRotation: (degrees: number) => zoomable.setRotation(degrees),
         resetRotation: () => zoomable.setRotation(0),
       },
       lens: {

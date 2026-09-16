@@ -3,16 +3,20 @@ import type { PreviewActions } from './types.js'
 /*
  * The preview control surface.
  *
- * Design: a single floating "liquid glass" control bar. Every preview type
- * gets the same visual language (bar, labeled groups, segmented controls,
- * buttons, inputs) and only the groups its adapter declares capabilities for
- * are rendered.
+ * Design: a sticky "navbar" bar pinned to the top of the preview area. Every
+ * preview type gets the same visual language (bar, labeled groups, segmented
+ * controls, buttons, inputs) and only the groups its adapter declares
+ * capabilities for are rendered.
  *
+ * - The bar is part of the preview layout (never an overlay): it sits at the
+ *   top of the preview container with `position: sticky`, so it stays visible
+ *   while the preview content scrolls beneath it and moves naturally with the
+ *   page. It is not fixed to the browser viewport.
  * - Groups are labeled clusters (Pages / Zoom / View / Sheet / Search /
  *   Text / Lens / File) separated by hairline dividers.
- * - On narrow surfaces the least-critical groups collapse into a glass
- *   overflow menu ("More") instead of overflowing or wrapping. Pages, Zoom
- *   and Sheet are pinned to the bar.
+ * - Pinned groups (Pages, Zoom, View, Sheet) stay on the bar; everything else
+ *   collapses into a glass overflow menu ("More") on narrow surfaces, keeping
+ *   the bar responsive without wrapping or overflowing.
  * - Icons form one hand-drawn family: 24px grid, 1.6px stroke, round caps,
  *   currentColor, rendered at 18px.
  */
@@ -74,13 +78,13 @@ const GLASS_CSS = `
   --pf-ink-faint: rgba(30, 41, 59, 0.5);
   --pf-accent: #1d4ed8;
   --pf-line: rgba(15, 23, 42, 0.14);
-  position: absolute;
-  top: 12px;
-  right: 12px;
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 30;
-  display: flex;
-  align-items: flex-start;
-  max-width: calc(100vw - 24px);
+  flex: 0 0 auto;
+  width: 100%;
   color: var(--pf-ink);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: 12px;
@@ -93,16 +97,28 @@ const GLASS_CSS = `
 }
 .pf-bar {
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  justify-content: flex-start;
   gap: 2px;
-  padding: 6px;
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.56));
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.86));
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  box-shadow: 0 12px 34px rgba(2, 6, 23, 0.18), 0 2px 8px rgba(2, 6, 23, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 1px 3px rgba(2, 6, 23, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  overflow-x: auto;
+  scrollbar-width: none;
   animation: pf-in 0.18s ease-out;
+}
+.pf-bar::-webkit-scrollbar {
+  display: none;
+}
+/* When groups overflow the bar, keep pinned controls reachable from the left
+   edge instead of centering (centered overflow clips both sides). */
+.pf-bar--left {
+  justify-content: flex-start;
 }
 @keyframes pf-in {
   from { opacity: 0; transform: translateY(-4px); }
@@ -222,6 +238,10 @@ const GLASS_CSS = `
   width: 34px;
   padding: 0 2px;
 }
+.pf-input--rotate {
+  width: 56px;
+  padding: 0 4px;
+}
 .pf-search {
   position: relative;
 }
@@ -299,6 +319,7 @@ const GLASS_CSS = `
 .pf-more {
   position: relative;
   align-self: stretch;
+  margin-left: auto;
 }
 .pf-menu {
   position: absolute;
@@ -496,6 +517,7 @@ interface ToolbarRefs {
   thumbnailsButton?: HTMLButtonElement
   wrapButton?: HTMLButtonElement
   zoomLabel?: HTMLButtonElement
+  rotationInput?: HTMLInputElement
   sheetsSeg?: SegmentedResult<string>
   lensMagSeg?: SegmentedResult<number>
   lensSizeSeg?: SegmentedResult<number>
@@ -642,10 +664,11 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
     })
   }
 
-  /* View */
+  /* View — pinned so rotation (and other view state) stays one tap away even
+     on narrow surfaces; everything else folds into the overflow menu. */
   const viewNeeded = Boolean(actions.fit || actions.rotate || actions.thumbnails || actions.canFullscreen)
   if (viewNeeded) {
-    addGroup('view', 'View', 'document', false, (row) => {
+    addGroup('view', 'View', 'document', true, (row) => {
       if (actions.fit) {
         row.appendChild(
           makeButton(ICONS.fitWidth, 'Fit width', () => {
@@ -670,20 +693,60 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
       }
       if (actions.rotate) {
         row.appendChild(
-          makeButton(ICONS.rotateCw, 'Rotate clockwise', () => {
-            actions.rotate?.rotateClockwise()
+          makeButton(ICONS.rotateCcw, 'Rotate counter-clockwise (−90°)', () => {
+            actions.rotate?.rotateCounterclockwise()
             refresh()
           })
         )
+        if (typeof actions.rotate.setRotation === 'function') {
+          const input = document.createElement('input')
+          input.type = 'text'
+          input.inputMode = 'numeric'
+          input.className = 'pf-input pf-input--rotate'
+          input.placeholder = '0'
+          input.setAttribute('aria-label', 'Rotation in degrees')
+          input.title = 'Rotation in degrees — type a value and press Enter (empty or invalid input is ignored)'
+          input.addEventListener('focus', () => input.select())
+          const revert = (): void => {
+            input.value = typeof actions.rotate?.rotation === 'number' ? String(actions.rotate.rotation) : '0'
+          }
+          const commit = (): void => {
+            const text = input.value.trim()
+            if (text === '' || !Number.isFinite(Number(text))) {
+              revert()
+              refresh()
+              return
+            }
+            try {
+              actions.rotate?.setRotation?.(Number(text))
+            } catch (error) {
+              console.error('[preview-file] rotation failed', error)
+            }
+            refresh()
+          }
+          input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              input.blur()
+              commit()
+            } else if (event.key === 'Escape') {
+              revert()
+              input.blur()
+            }
+          })
+          input.addEventListener('blur', commit)
+          refs.rotationInput = input
+          row.appendChild(input)
+        }
         row.appendChild(
-          makeButton(ICONS.rotateCcw, 'Rotate counter-clockwise', () => {
-            actions.rotate?.rotateCounterclockwise()
+          makeButton(ICONS.rotateCw, 'Rotate clockwise (+90°)', () => {
+            actions.rotate?.rotateClockwise()
             refresh()
           })
         )
         if (actions.rotate.resetRotation) {
           row.appendChild(
-            makeButton(ICONS.reset, 'Reset rotation', () => {
+            makeButton(ICONS.reset, 'Reset rotation (0°)', () => {
               actions.rotate?.resetRotation?.()
               refresh()
             })
@@ -906,6 +969,15 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
         refs.zoomLabel.dataset.lastZoom = String(percent)
       }
     }
+    if (refs.rotationInput && typeof actions.rotate?.rotation === 'number') {
+      const rotation = actions.rotate.rotation
+      if (String(rotation) !== refs.rotationInput.dataset.lastRot) {
+        if (document.activeElement !== refs.rotationInput) {
+          refs.rotationInput.value = String(rotation)
+        }
+        refs.rotationInput.dataset.lastRot = String(rotation)
+      }
+    }
     if (refs.lensMagSeg && actions.lens) refs.lensMagSeg.setActive(actions.lens.magnification)
     if (refs.lensSizeSeg && actions.lens) refs.lensSizeSeg.setActive(actions.lens.lensSize)
   }
@@ -960,6 +1032,7 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
         toMenu.add(group.key)
       }
     }
+    bar.classList.toggle('pf-bar--left', total > capacity)
 
     for (const group of groupRefs) {
       const inMenu = group.el.parentElement === menu
@@ -1048,6 +1121,7 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
   }
 
   refresh()
+  layout()
   scheduleLayout()
 
   return {
@@ -1066,7 +1140,7 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
 
 export function mountControls(container: HTMLElement, actions: PreviewActions): () => void {
   const toolbar = buildToolbar(actions)
-  container.appendChild(toolbar.root)
+  container.insertBefore(toolbar.root, container.firstChild)
 
   const resizeObserver = new ResizeObserver(() => toolbar.scheduleLayout())
   resizeObserver.observe(container)

@@ -7,7 +7,7 @@ export interface ZoomableOptions {
 
 export interface Zoomable {
   readonly scale: number
-  /** Current rotation in degrees, normalized to a multiple of 90. */
+  /** Current rotation in degrees, normalized to [0, 360). */
   readonly rotation: number
   setRotation(degrees: number): void
   zoomIn(): void
@@ -34,16 +34,10 @@ function normalizeDegrees(degrees: number): number {
 
 /** Rotate a point around the origin (matching the CSS `rotate()` transform). */
 function rotatePoint(x: number, y: number, degrees: number): [number, number] {
-  switch (normalizeDegrees(degrees)) {
-    case 90:
-      return [-y, x]
-    case 180:
-      return [-x, -y]
-    case 270:
-      return [y, -x]
-    default:
-      return [x, y]
-  }
+  const radians = (normalizeDegrees(degrees) * Math.PI) / 180
+  const sin = Math.sin(radians)
+  const cos = Math.cos(radians)
+  return [x * cos - y * sin, x * sin + y * cos]
 }
 
 export function createZoomable(
@@ -84,7 +78,7 @@ export function createZoomable(
 
   /** Translate values that keep the content centered at the given scale. When
    *  the image is rotated the origin-relative rotation shifts the visual box,
-   *  so centering is no longer `translate(0, 0)`. */
+   *  so centering is no longer `translate(0, 0)`. Handles arbitrary degrees. */
   function centeredTranslation(nextScale: number): [number, number] {
     const width = content.offsetWidth
     const height = content.offsetHeight
@@ -100,8 +94,11 @@ export function createZoomable(
     const viewportWidth = viewport.clientWidth
     const viewportHeight = viewport.clientHeight
     const [centerX, centerY] = centeredTranslation(nextScale)
-    const contentWidth = (rotation % 180 === 0 ? content.offsetWidth : content.offsetHeight) * nextScale
-    const contentHeight = (rotation % 180 === 0 ? content.offsetHeight : content.offsetWidth) * nextScale
+    const radians = (rotation * Math.PI) / 180
+    const absSin = Math.abs(Math.sin(radians))
+    const absCos = Math.abs(Math.cos(radians))
+    const contentWidth = (absCos * content.offsetWidth + absSin * content.offsetHeight) * nextScale
+    const contentHeight = (absSin * content.offsetWidth + absCos * content.offsetHeight) * nextScale
     const maxX = Math.max(0, (contentWidth - viewportWidth) / 2)
     const maxY = Math.max(0, (contentHeight - viewportHeight) / 2)
     translateX = clamp(x, centerX - maxX, centerX + maxX)
@@ -122,8 +119,14 @@ export function createZoomable(
   function setScale(nextScale: number, anchorX?: number, anchorY?: number): void {
     const ratio = nextScale / scale
     if (ratio !== 1 && anchorX !== undefined && anchorY !== undefined) {
-      translateX = anchorX - (anchorX - translateX) * ratio
-      translateY = anchorY - (anchorY - translateY) * ratio
+      /* Keep the point under the anchor stationary. The transform is
+       * `translate * rotate * scale` about the content's layout origin, so a
+       * local point `p` lands at `o + translate + rotate(scale · p)` where `o`
+       * is the flex/computed layout offset. Solving for the new translate is
+       * exact for any rotation. */
+      const factor = 1 - ratio
+      translateX = translateX + factor * (anchorX - content.offsetLeft - translateX)
+      translateY = translateY + factor * (anchorY - content.offsetTop - translateY)
     }
     scale = nextScale
     clampTranslate(translateX, translateY, scale)

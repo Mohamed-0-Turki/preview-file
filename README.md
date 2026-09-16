@@ -1,6 +1,6 @@
 # preview-file
 
-A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, Excel, CSV, text and image files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, spreadsheet-style data views for Excel/CSV, and a floating glass toolbar that only shows the controls the active preview supports.
+A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, Excel, CSV, text and image files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, spreadsheet-style data views for Excel/CSV, and a sticky top toolbar that behaves like a navbar and only shows the controls the active preview supports.
 
 - **No framework required.** Vanilla JS is a first-class citizen; React, Vue, Svelte and Angular use the exact same `preview()` call.
 - **Capability-driven controls.** Each previewer declares what it can do and the toolbar renders exactly that (zoom, pages, sheets, search, rotate, thumbnails, lens, download, fullscreen).
@@ -202,19 +202,19 @@ main thread (a console warning appears) and the PDF still renders.
 
 ## The toolbar & previewer capabilities
 
-After a successful render, `preview()` mounts a floating, liquid-glass toolbar in the bottom-right corner of the container. Only the controls the active previewer actually implements appear:
+After a successful render, `preview()` mounts a sticky toolbar pinned to the top of the preview container. It behaves like a normal website navbar: it is part of the preview layout (never an overlay), stays visible while the preview content scrolls beneath it, and uses `position: sticky`, so it moves naturally with the page instead of being fixed to the browser viewport. Only the controls the active previewer actually implements appear:
 
 - **Pages** — previous / next / go-to-page (PDF, Word)
 - **View** — continuous ↔ single page (PDF, Word), thumbnails
 - **Zoom** — zoom in/out, reset, fit width / fit page / actual size, live % indicator
-- **Rotate** — clockwise / counter-clockwise / reset rotation (PDF, images)
+- **Rotate** — clockwise / counter-clockwise, exact-degree input, reset rotation (PDF, images)
 - **Sheet** — sheet tabs (Excel, CSV)
 - **Search** — in-sheet/in-document search with result count (Excel, CSV, PDF)
 - **Text** — copy, word-wrap (text)
 - **Lens** — magnifier magnification & size (images)
 - **File** — download (all), fullscreen (all)
 
-On narrow containers the least-critical groups collapse into a **⋯** overflow menu. The toolbar is keyboard-accessible (`radiogroup` segments with roving tabindex, arrow keys, visible focus rings) and honors `prefers-reduced-motion`.
+On narrow containers the least-critical groups collapse into a **⋯** overflow menu while Pages, Zoom, View and Sheet stay pinned to the bar, so rotation and view controls remain one tap away. The toolbar is keyboard-accessible (`radiogroup` segments with roving tabindex, arrow keys, visible focus rings) and honors `prefers-reduced-motion`.
 
 ---
 

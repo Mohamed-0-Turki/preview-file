@@ -59,7 +59,7 @@ src/
     virtual-table.ts   Shared virtualized table (Excel + CSV share it)
     interaction/       Shared pointer/wheel interaction helpers
   controls/            Toolbar, download helper, capability types
-    toolbar.ts         mountControls(): floating glass toolbar + overflow menu
+    toolbar.ts         mountControls(): sticky navbar toolbar + overflow menu
     download.ts        downloadBlob(): Blob → <a download> fallback
     types.ts           PreviewAdapter, PreviewActions, and control group contracts
 ```
@@ -132,7 +132,7 @@ interface PreviewAdapter {
   lens?: LensAdapter          // magnification + lens size (images)
   pages?: PageNavigation      // page, pageCount, previous/next/goToPage
   fit?: FitControls           // fitWidth / fitPage / actualSize
-  rotate?: RotateControls     // clockwise / counter-clockwise / reset rotation
+  rotate?: RotateControls     // rotation getter, ±90 steps, exact-degree setRotation, reset
   sheets?: SheetNavigation    // tabs, switchSheet
   search?: SearchControls     // search(query), resultCount, clear
   text?: TextControls         // copy, word-wrap
@@ -142,17 +142,31 @@ interface PreviewAdapter {
 }
 ```
 
+`RotateControls` supports exact arbitrary degrees on renderers that can do it:
+
+```ts
+interface RotateControls {
+  rotation?: number           // current degrees, normalized to [0, 360)
+  rotateClockwise(): void     // +90°
+  rotateCounterclockwise(): void // −90°
+  setRotation?(degrees: number): void // any real number, normalized internally
+  resetRotation?(): void      // back to 0°
+}
+```
+
 A renderer returns `void` (or `undefined`) for a plain, non-interactive view — no toolbar mounts.
 
 ### 7. Toolbar — `src/controls/toolbar.ts`
 
-`mountControls(container, actions)` builds a floating, liquid-glass bar (fixed bottom-right inside the container):
+`preview()` builds a preview **shell** (a flex column filling the container): the toolbar on top, the renderer's content in a **stage** below it. `mountControls(container, actions)` prepends the bar into that shell — it is a sticky navbar, not an overlay:
 
+- The bar uses `position: sticky; top: 0` inside the preview container, so it stays pinned at the top while the content scrolls beneath it and moves naturally with the page (it is never `fixed` to the browser viewport).
+- The renderer's content lives in the **stage** element below the bar, so the toolbar never covers preview content.
 - Grouped controls: **Pages**, **View**, **Zoom**, **Rotate**, **Sheet**, **Search**, **Text**, **Lens**, **File**. Only groups backed by an existing capability render.
-- **Overflow strategy:** groups with lower priority collapse into a **⋯** menu when the container is narrow, so the bar never overflows or wraps.
+- **Overflow strategy:** Pages, Zoom, View and Sheet are pinned to the bar; lower-priority groups collapse into a **⋯** menu when the container is narrow, so the bar never wraps. If pinned groups still exceed the width, the bar scrolls horizontally instead of hiding controls.
 - Styling is injected as a single `#pf-glass-styles` `style` element — one `pf-*` classnames namespace, scoped to the container, no shadow DOM or external styles were introduced.
 - Accessibility: segmented controls are `radiogroup` with roving tabindex + arrow keys; toggles expose `aria-pressed`; focus-visible rings everywhere; `prefers-reduced-motion` respected; coarse-pointer targets are ≥ 38 px.
-- The live zoom `%` indicator (when `zoomPercent` exists) polls the adapter a couple of times a second to stay current after wheel/fit interactions.
+- The live zoom `%` indicator (when `zoomPercent` exists) polls the adapter a couple of times a second to stay current after wheel/fit interactions; the rotation input syncs from `rotate.rotation` the same way.
 
 Because the toolbar is *derived* from the adapter, adding a new control is: (1) define a capability interface, (2) implement it in a renderer, (3) add a group in `toolbar.ts`.
 
@@ -162,7 +176,7 @@ Because the toolbar is *derived* from the adapter, adding a new control is: (1) 
 
 ## Rendering philosophy
 
-- **The library never owns the layout.** It renders at 100 % of whatever element the caller provides (auto-set to `position: relative` if static). No modals, no full-page takeover, no injected page chrome — the toolbar floats *inside* the box.
+- **The library never owns the layout.** It renders at 100 % of whatever element the caller provides (auto-set to `position: relative` if static). No modals, no full-page takeover, no injected page chrome — the toolbar lives *inside* the box as a sticky navbar with the renderer's content in a stage below it.
 - **Real geometry, not stretch-to-fit.** PDF and Word pages keep their intrinsic size and are paginated/navigated, rather than being squeezed to the preview box.
 - **Read-only data view.** Excel/CSV are rendered as tabular data views (virtualized), focused on inspection speed.
 

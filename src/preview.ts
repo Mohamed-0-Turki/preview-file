@@ -168,7 +168,9 @@ function buildActions(
     canZoom,
     canDownload: adapter?.canDownload ?? true,
     canFullscreen,
-    zoomPercent: adapter?.zoomPercent,
+    get zoomPercent() {
+      return adapter?.zoomPercent
+    },
     zoomIn,
     zoomOut,
     resetZoom,
@@ -268,22 +270,34 @@ export async function preview(
     container.style.position = 'relative'
   }
 
+  /* The preview is laid out like a page: a sticky toolbar on top and a stage
+     below it that holds the renderer's content. Keeping the toolbar in normal
+     flow (not an overlay) lets the content scroll beneath it while the bar
+     stays pinned at the top of the preview. */
+  const shell = document.createElement('div')
+  shell.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;'
+  container.appendChild(shell)
+
+  const stage = document.createElement('div')
+  stage.style.cssText = 'position:relative;flex:1 1 auto;min-height:0;overflow:hidden;'
+  shell.appendChild(stage)
+
   let adapter: PreviewAdapter | undefined
   try {
-    const rendered = await renderer.render(container, result, options)
+    const rendered = await renderer.render(stage, result, options)
     adapter = rendered ?? undefined
   } catch (error) {
     const message = `Failed to render preview for "${resolved.name}": ${(error as Error).message}`
     showError(container, message, { retry, downloadName: resolved.name, downloadBlob: resolved.blob })
-    renderer.destroy?.(container)
+    renderer.destroy?.(stage)
     throw error as Error
   }
   if (!isCurrent()) return
 
-  const unmountControls = mountControls(container, buildActions(source, options, container, resolved, adapter))
+  const unmountControls = mountControls(shell, buildActions(source, options, container, resolved, adapter))
 
   activePreviews.set(container, () => {
     unmountControls()
-    renderer.destroy?.(container)
+    renderer.destroy?.(stage)
   })
 }
