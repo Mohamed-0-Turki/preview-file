@@ -555,3 +555,12 @@ npm run dev          # http://localhost:3000
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Icons
+
+The toolbar and preview controls use icons from the [Lucide](https://lucide.dev)
+icon set (lucide-static v0.460.0), which are shipped as local SVG assets in
+`dist/icons/` and inlined into the controls at runtime so they inherit the
+control styling via `currentColor`. Lucide is licensed under the ISC license —
+see `dist/icons/NOTICE.md` (source: `src/icons/NOTICE.md`) for the full
+attribution and license text.

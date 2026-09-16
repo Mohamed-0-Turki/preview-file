@@ -1,4 +1,5 @@
 import type { PreviewActions } from './types.js'
+import { ICONS as LUCIDE } from '../icons/icons.js'
 
 /*
  * The preview control surface.
@@ -17,56 +18,36 @@ import type { PreviewActions } from './types.js'
  * - Pinned groups (Pages, Zoom, View, Sheet) stay on the bar; everything else
  *   collapses into a glass overflow menu ("More") on narrow surfaces, keeping
  *   the bar responsive without wrapping or overflowing.
- * - Icons form one hand-drawn family: 24px grid, 1.6px stroke, round caps,
- *   currentColor, rendered at 18px.
+ * - Icons are Lucide SVGs (24px grid, 2px stroke, round caps, currentColor,
+ *   see src/icons/) rendered inline at 18px so they inherit the control style.
  */
 
-const SVG = (body: string, size = 18): string =>
-  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`
-
+/* Local aliases from the toolbar's semantic action names to the Lucide assets
+   in src/icons/. Rotate and reset each have a distinct glyph: the two ±90°
+   steps use the circular rotate arrows, zoom reset returns to the default view
+   (undo arrow), and rotation reset returns to 0° (refresh arrows). */
 const ICONS = {
-  /* Zoom in: magnifier with a plus – the universal "enlarge" affordance. */
-  zoomIn: SVG('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/><path d="M11 8v6M8 11h6"/>'),
-  /* Zoom out: magnifier with a minus – direct visual contrast to zoom in. */
-  zoomOut: SVG('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/><path d="M8 11h6"/>'),
-  /* Reset: arrow returning to its origin bar – "restore the default view". */
-  reset: SVG('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5A5.5 5.5 0 0 1 14.5 20H8"/>'),
-  /* Fit width: content expanded between matched horizontal arrows. */
-  fitWidth: SVG('<path d="M3 12h18"/><path d="M8 7l-4 5 4 5"/><path d="M16 7l4 5-4 5"/>'),
-  /* Fit page: a frame with an arrow into its centre – "fit the whole frame". */
-  fitPage: SVG('<rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M8.5 12 12 15.5 15.5 12"/><path d="M12 9v6.5"/>'),
-  /* Fullscreen: four corner brackets – the standard expand affordance. */
-  fullscreen: SVG(
-    '<path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M21 15v4a2 2 0 0 1-2 2h-4"/><path d="M3 15v4a2 2 0 0 0 2 2h4"/>'
-  ),
-  /* Previous page: chevron pointing back – the clearest "move backward". */
-  prevPage: SVG('<path d="M15 5l-8 7 8 7"/>'),
-  /* Next page: chevron pointing forward. */
-  nextPage: SVG('<path d="M9 5l8 7-8 7"/>'),
-  /* Single page: one document sheet. */
-  singlePage: SVG('<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5"/>'),
-  /* Continuous scroll: two stacked sheets – many pages flowing together. */
-  continuous: SVG('<path d="M20 7h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H6a2 2 0 0 0-2 2v11"/>'),
-  /* Download: arrow dropping into a tray – the universal download icon. */
-  download: SVG('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>'),
-  /* Rotate clockwise: circular arrow curving in the rotation direction. */
-  rotateCw: SVG('<path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/>'),
-  /* Rotate counter-clockwise: mirror of the above. */
-  rotateCcw: SVG('<path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/>'),
-  /* Copy: overlapping sheets – duplicate content. */
-  copy: SVG('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
-  /* Word wrap: lines folding back with a return arrow. */
-  wrap: SVG('<path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h8"/><path d="M16 15l3 2-3 2"/>'),
-  /* Search: magnifier over the find input. */
-  search: SVG('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>'),
-  /* Clear search: unambiguous x. */
-  clear: SVG('<path d="M6 6l12 12M18 6 6 18"/>'),
-  /* Thumbnails: a 2x2 grid of sheets – the standard gallery layout icon. */
-  thumbnails: SVG(
-    '<rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.2"/><rect x="14" y="14" width="6.5" height="6.5" rx="1.2"/>'
-  ),
-  /* More: three dots – the standard "additional controls" affordance. */
-  more: SVG('<circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/>'),
+  zoomIn: LUCIDE['zoom-in'],
+  zoomOut: LUCIDE['zoom-out'],
+  reset: LUCIDE['undo-2'],
+  resetRotation: LUCIDE['refresh-ccw'],
+  fitWidth: LUCIDE['move-horizontal'],
+  fitPage: LUCIDE['scan'],
+  actualSize: LUCIDE['ruler'],
+  fullscreen: LUCIDE['maximize'],
+  prevPage: LUCIDE['chevron-left'],
+  nextPage: LUCIDE['chevron-right'],
+  singlePage: LUCIDE['file'],
+  continuous: LUCIDE['file-stack'],
+  download: LUCIDE['download'],
+  rotateCw: LUCIDE['rotate-cw'],
+  rotateCcw: LUCIDE['rotate-ccw'],
+  copy: LUCIDE['copy'],
+  wrap: LUCIDE['wrap-text'],
+  search: LUCIDE['search'],
+  clear: LUCIDE['x'],
+  thumbnails: LUCIDE['layout-grid'],
+  more: LUCIDE['ellipsis'],
 }
 
 const GLASS_STYLE_ID = 'pf-glass-styles'
@@ -94,6 +75,14 @@ const GLASS_CSS = `
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+/* Lucide icons are authored on a 24px canvas; render them uniformly at 18px.
+   They use stroke="currentColor", so they inherit the control's color. */
+.pf-controls svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  flex: none;
 }
 .pf-bar {
   display: flex;
@@ -684,7 +673,7 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
         )
         if (actions.fit.actualSize) {
           row.appendChild(
-            makeButton('100%', 'Actual size (100%)', () => {
+            makeButton(ICONS.actualSize, 'Actual size (100%)', () => {
               actions.fit?.actualSize?.()
               refresh()
             }, { chip: true })
@@ -746,10 +735,10 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
         )
         if (actions.rotate.resetRotation) {
           row.appendChild(
-            makeButton(ICONS.reset, 'Reset rotation (0°)', () => {
-              actions.rotate?.resetRotation?.()
-              refresh()
-            })
+makeButton(ICONS.resetRotation, 'Reset rotation (0°)', () => {
+            actions.rotate?.resetRotation?.()
+            refresh()
+          })
           )
         }
       }
