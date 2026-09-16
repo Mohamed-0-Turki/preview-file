@@ -39,7 +39,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Mohamed-0-Turki/preview-file.git"
+    "url": "git+https://github.com/Mohamed-0-Turki/preview-file.git"
   },
   "bugs": {
     "url": "https://github.com/Mohamed-0-Turki/preview-file/issues"
