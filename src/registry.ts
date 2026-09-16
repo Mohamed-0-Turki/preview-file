@@ -11,7 +11,14 @@ export function registerPreviewer(constructor: PreviewerConstructor): void {
 }
 
 export function getPreviewer(mimeType: string): Previewer | undefined {
-  return previewers.get(mimeType)
+  const exact = previewers.get(mimeType)
+  if (exact) return exact
+
+  for (const previewer of previewers.values()) {
+    if (previewer.canPreview(mimeType)) return previewer
+  }
+
+  return undefined
 }
 
 export function clearPreviewers(): void {

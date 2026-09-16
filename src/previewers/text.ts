@@ -9,7 +9,8 @@ export class TextPreviewer implements Previewer {
     return mimeType.startsWith('text/')
   }
 
-  async preview(_file: FileInput, _options?: PreviewOptions): Promise<PreviewResult> {
-    throw new Error('Not implemented yet')
+  async preview(file: FileInput, _options?: PreviewOptions): Promise<PreviewResult> {
+    const data = new TextDecoder().decode(file.data)
+    return { type: 'text/plain', data }
   }
 }
