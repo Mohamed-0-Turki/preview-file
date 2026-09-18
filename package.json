@@ -1,7 +1,7 @@
 {
   "name": "@mohamed-0-turki/preview-file",
-  "version": "0.1.5",
-  "description": "A framework-agnostic file preview library for images, PDFs, documents, spreadsheets, text files, and more.",
+  "version": "0.1.6",
+  "description": "Browser file preview library for PDF, Word, Excel, PowerPoint, images, CSV, text, and more — framework-agnostic, TypeScript-ready, and easy to integrate.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -25,16 +25,27 @@
     "prepublishOnly": "node scripts/build-icons.mjs && npm run typecheck && npm run build && npm run lint"
   },
   "keywords": [
-    "file",
     "file-preview",
     "file-viewer",
-    "preview",
-    "viewer",
+    "document-viewer",
     "document-preview",
     "pdf-viewer",
-    "image-viewer",
+    "pdf-preview",
+    "word-viewer",
+    "word-preview",
     "excel-viewer",
-    "word-viewer"
+    "excel-preview",
+    "spreadsheet-viewer",
+    "spreadsheet-preview",
+    "powerpoint-viewer",
+    "pptx-viewer",
+    "ppt-viewer",
+    "csv-viewer",
+    "image-viewer",
+    "text-viewer",
+    "browser-file-viewer",
+    "javascript",
+    "typescript"
   ],
   "license": "MIT",
   "engines": {
