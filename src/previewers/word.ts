@@ -1,9 +1,10 @@
-import type { Previewer } from '../previewer.js'
+import { extensionFrom } from '../utils/index.js'
+import type { Previewer } from './types.js'
 import type { FileInput, PreviewOptions, PreviewResult } from '../types.js'
 import type { WordFormat, WordResultData } from './result-types.js'
 
 function detectWordFormat(name: string, mimeType: string): WordFormat {
-  const extension = name.split('.').pop()?.toLowerCase() ?? ''
+  const extension = extensionFrom(name)
 
   if (extension === 'docx') return 'docx'
   if (extension === 'docm') return 'docm'

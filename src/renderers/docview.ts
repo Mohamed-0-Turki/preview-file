@@ -1,3 +1,5 @@
+import type { PageNavigation, PreviewAdapter } from '../controls/types.js'
+
 export const DOCVIEW_BACKGROUND = '#525659'
 export const DOCVIEW_PADDING = 16
 export const DOCVIEW_GAP = 24
@@ -130,4 +132,251 @@ export function pageTopFromIndex(
   topPadding: number
 ): number {
   return topPadding + (metrics.offsets[index] ?? 0) * scale
+}
+
+export interface PagedDocViewState {
+  readonly scale: number
+  readonly metrics: PageMetrics
+}
+
+/**
+ * The format-specific surface a renderer exposes to the shared paged-document
+ * controller. Everything scroll/zoom/fit/page related is handled by
+ * `createPagedDocController`; the host only provides geometry, limits and
+ * hooks that connect the controller back to the renderer's own content.
+ */
+export interface PagedDocHost {
+  readonly stage: DocStage
+  readonly baseWidth: number
+  readonly pageCount: number
+  readonly minScale: number
+  readonly maxScale: number
+  readonly zoomStep: number
+  readonly metrics: PageMetrics
+  /** Called once per scroll animation frame (PDFs re-render visible pages). */
+  onScrollFrame?(state: PagedDocViewState): void
+  /** Called after every layout pass (PDFs re-render visible pages). */
+  onLayout?(state: PagedDocViewState): void
+  /** Called during teardown, after the controller removed its own listeners. */
+  onDestroy?(): void
+}
+
+/** The capability slice a paged-document renderer always implements. */
+export type PagedDocAdapter = Pick<
+  PreviewAdapter,
+  'canZoom' | 'zoomPercent' | 'zoomIn' | 'zoomOut' | 'resetZoom' | 'pages' | 'fit' | 'singlePage'
+>
+
+export interface PagedDocController {
+  readonly scale: number
+  layoutAll(restoreDocY?: number): void
+  applyFit(mode: 'width' | 'page'): void
+  zoomBy(factor: number): void
+  jumpToPage(pageNumber: number): void
+  toggleSinglePage(): void
+  currentPageIndex(): number
+  notifyPageChange(): void
+  destroy(): void
+  readonly adapter: PagedDocAdapter
+}
+
+/**
+ * The zoom / fit / navigation state machine shared by every paged-document
+ * renderer (PDF and Word). The PDF and Word renderers used to duplicate ~150
+ * lines of this logic; this controller owns the layout pass, scroll
+ * notifications, page navigation adapter and the corresponding
+ * `PreviewAdapter` slice. Renderers remain responsible only for producing the
+ * page geometry (via {@link PagedDocHost.metrics}) and rendering page content
+ * (via `onLayout` / `onScrollFrame`).
+ */
+export function createPagedDocController(host: PagedDocHost): PagedDocController {
+  const { stage } = host
+
+  let scale = 1
+  let fitMode: 'width' | 'page' | 'none' = 'none'
+  let singleMode = false
+  let activeIndex = 0
+  let pageChangeListeners: (() => void)[] = []
+  let scrollFrame = 0
+
+  const state = (): PagedDocViewState => ({ scale, metrics: host.metrics })
+
+  const availableWidth = (): number => Math.max(1, stage.viewport.clientWidth - DOCVIEW_PADDING * 2)
+  const availableHeight = (): number => Math.max(1, stage.viewport.clientHeight - DOCVIEW_PADDING * 2)
+
+  const notifyPageChange = (): void => {
+    for (const listener of pageChangeListeners) listener()
+  }
+
+  const layoutAll = (restoreDocY?: number): void => {
+    const metrics = host.metrics
+    const scaleHeight = singleMode ? metrics.heights[activeIndex] * scale : metrics.totalHeight * scale
+    const translateY = singleMode ? -(metrics.offsets[activeIndex] ?? 0) * scale : 0
+    stage.layout(scale, host.baseWidth, metrics.totalHeight, Math.ceil(scaleHeight), translateY)
+    if (singleMode) {
+      stage.viewport.style.overflow = 'hidden'
+      stage.viewport.scrollTop = 0
+    } else {
+      stage.viewport.style.overflow = 'auto'
+      if (restoreDocY !== undefined) {
+        stage.viewport.scrollTop = Math.max(0, DOCVIEW_PADDING + restoreDocY * scale)
+      }
+    }
+    host.onLayout?.(state())
+  }
+
+  const onScroll = (): void => {
+    if (scrollFrame) return
+    scrollFrame = window.requestAnimationFrame(() => {
+      scrollFrame = 0
+      host.onScrollFrame?.(state())
+      notifyPageChange()
+    })
+  }
+  stage.viewport.addEventListener('scroll', onScroll, { passive: true })
+
+  const currentPageIndex = (): number => {
+    if (host.pageCount === 0) return 0
+    if (singleMode) return activeIndex
+    return Math.min(
+      host.pageCount - 1,
+      pageIndexAtCenter(host.metrics, stage.viewport.scrollTop, stage.viewport.clientHeight, scale, DOCVIEW_PADDING)
+    )
+  }
+
+  const jumpToPage = (pageNumber: number): void => {
+    const target = Math.max(0, Math.min(host.pageCount - 1, pageNumber))
+    if (singleMode) {
+      activeIndex = target
+      layoutAll()
+    } else {
+      stage.viewport.scrollTop = pageTopFromIndex(host.metrics, target, scale, DOCVIEW_PADDING)
+      host.onLayout?.(state())
+    }
+    notifyPageChange()
+  }
+
+  const applyFit = (mode: 'width' | 'page'): void => {
+    if (stage.viewport.clientWidth <= 0) return
+    fitMode = mode
+    const metrics = host.metrics
+    const width = availableWidth()
+    const height = availableHeight()
+    if (mode === 'width') {
+      scale = Math.min(host.maxScale, Math.max(host.minScale, width / host.baseWidth))
+    } else {
+      const fitHeight = singleMode ? metrics.heights[activeIndex] : metrics.heights[metrics.indexOfMaxHeight]
+      scale = Math.min(host.maxScale, Math.max(host.minScale, Math.min(width / host.baseWidth, height / fitHeight)))
+    }
+    layoutAll()
+    notifyPageChange()
+  }
+
+  const zoomBy = (factor: number): void => {
+    const anchor = (stage.viewport.scrollTop - DOCVIEW_PADDING) / scale
+    fitMode = 'none'
+    scale = Math.min(host.maxScale, Math.max(host.minScale, scale * factor))
+    layoutAll(anchor)
+    notifyPageChange()
+  }
+
+  const toggleSinglePage = (): void => {
+    if (!singleMode) {
+      activeIndex = currentPageIndex()
+      singleMode = true
+      layoutAll()
+    } else {
+      const anchor = activeIndex
+      singleMode = false
+      layoutAll()
+      stage.viewport.scrollTop = pageTopFromIndex(host.metrics, anchor, scale, DOCVIEW_PADDING)
+    }
+    notifyPageChange()
+  }
+
+  const navigation: PageNavigation = {
+    get page() {
+      return currentPageIndex() + 1
+    },
+    get pageCount() {
+      return host.pageCount
+    },
+    previousPage: () => jumpToPage(currentPageIndex() - 1),
+    nextPage: () => jumpToPage(currentPageIndex() + 1),
+    goToPage: (pageNumber) => jumpToPage(pageNumber - 1),
+    onPageChange: (listener) => {
+      pageChangeListeners.push(listener)
+      return () => {
+        pageChangeListeners = pageChangeListeners.filter((item) => item !== listener)
+      }
+    },
+  }
+
+  const resizeObserver =
+    typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => {
+          if (fitMode !== 'none') {
+            const mode = fitMode
+            fitMode = 'none'
+            applyFit(mode)
+          } else {
+            layoutAll()
+          }
+          notifyPageChange()
+        })
+      : null
+  resizeObserver?.observe(stage.viewport)
+
+  const adapter: PagedDocAdapter = {
+    canZoom: true,
+    get zoomPercent() {
+      return Math.round(scale * 100)
+    },
+    zoomIn: () => zoomBy(host.zoomStep),
+    zoomOut: () => zoomBy(1 / host.zoomStep),
+    resetZoom: () => applyFit('width'),
+    pages: navigation,
+    fit: {
+      fitWidth: () => applyFit('width'),
+      fitPage: () => applyFit('page'),
+      actualSize: () => {
+        const anchor = (stage.viewport.scrollTop - DOCVIEW_PADDING) / scale
+        fitMode = 'none'
+        scale = 1
+        layoutAll(anchor)
+        notifyPageChange()
+      },
+    },
+    singlePage: {
+      get enabled() {
+        return singleMode
+      },
+      toggle: toggleSinglePage,
+    },
+  }
+
+  /* Documents always start fit-to-width, mirroring the historical default. */
+  applyFit('width')
+
+  return {
+    get scale() {
+      return scale
+    },
+    layoutAll,
+    applyFit,
+    zoomBy,
+    jumpToPage,
+    toggleSinglePage,
+    currentPageIndex,
+    notifyPageChange,
+    get adapter() {
+      return adapter
+    },
+    destroy: () => {
+      resizeObserver?.disconnect()
+      stage.viewport.removeEventListener('scroll', onScroll)
+      if (scrollFrame) window.cancelAnimationFrame(scrollFrame)
+      host.onDestroy?.()
+    },
+  }
 }

@@ -2,54 +2,9 @@ import type { PreviewAdapter } from '../controls/types.js'
 import type { PreviewOptions, PreviewResult } from '../types.js'
 import { isCsvResultData } from '../previewers/result-types.js'
 import { createVirtualTable } from './virtual-table.js'
+import { parseCsv } from '../utils/index.js'
+import { createRenderState } from './render-state.js'
 import type { Renderer } from './types.js'
-
-export function parseCsv(text: string): string[][] {
-  const rows: string[][] = []
-  let row: string[] = []
-  let field = ''
-  let inQuotes = false
-
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i] as string
-
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[i + 1] === '"') {
-          field += '"'
-          i += 1
-        } else {
-          inQuotes = false
-        }
-      } else {
-        field += char
-      }
-      continue
-    }
-
-    if (char === '"') {
-      inQuotes = true
-    } else if (char === ',') {
-      row.push(field)
-      field = ''
-    } else if (char === '\n' || char === '\r') {
-      if (char === '\r' && text[i + 1] === '\n') i += 1
-      row.push(field)
-      field = ''
-      rows.push(row)
-      row = []
-    } else {
-      field += char
-    }
-  }
-
-  if (field !== '' || row.length > 0) {
-    row.push(field)
-    rows.push(row)
-  }
-
-  return rows
-}
 
 interface CsvAttachment {
   destroy(): void
@@ -59,7 +14,7 @@ export class CsvRenderer implements Renderer {
   readonly name = 'csv'
   readonly supportedTypes = ['text/csv']
 
-  private readonly attachmentsByContainer = new WeakMap<HTMLElement, CsvAttachment>()
+  private readonly attachments = createRenderState<CsvAttachment>()
 
   canRender(type: string): boolean {
     return type === 'text/csv'
@@ -183,7 +138,7 @@ export class CsvRenderer implements Renderer {
       },
     }
 
-    this.attachmentsByContainer.set(container, {
+    this.attachments.set(container, {
       destroy: () => {
         table.destroy()
         stage.remove()
@@ -194,9 +149,6 @@ export class CsvRenderer implements Renderer {
   }
 
   destroy(container: HTMLElement): void {
-    const attachment = this.attachmentsByContainer.get(container)
-    if (!attachment) return
-    attachment.destroy()
-    this.attachmentsByContainer.delete(container)
+    this.attachments.destroyFor(container)
   }
 }

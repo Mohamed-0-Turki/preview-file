@@ -2,6 +2,7 @@ import type { PreviewAdapter } from '../controls/types.js'
 import type { PreviewOptions, PreviewResult } from '../types.js'
 import { isSpreadsheetResultData } from '../previewers/result-types.js'
 import { createVirtualTable } from './virtual-table.js'
+import { createRenderState } from './render-state.js'
 import type { Renderer } from './types.js'
 
 function columnName(index: number): string {
@@ -29,7 +30,7 @@ export class ExcelRenderer implements Renderer {
   readonly name = 'excel'
   readonly supportedTypes = ['application/vnd.spreadsheet']
 
-  private readonly attachmentsByContainer = new WeakMap<HTMLElement, ExcelAttachment>()
+  private readonly attachments = createRenderState<ExcelAttachment>()
 
   canRender(type: string): boolean {
     return type === 'application/vnd.spreadsheet'
@@ -196,7 +197,7 @@ export class ExcelRenderer implements Renderer {
       },
     }
 
-    this.attachmentsByContainer.set(container, {
+    this.attachments.set(container, {
       destroy: () => {
         table.destroy()
         stage.remove()
@@ -207,9 +208,6 @@ export class ExcelRenderer implements Renderer {
   }
 
   destroy(container: HTMLElement): void {
-    const attachment = this.attachmentsByContainer.get(container)
-    if (!attachment) return
-    attachment.destroy()
-    this.attachmentsByContainer.delete(container)
+    this.attachments.destroyFor(container)
   }
 }

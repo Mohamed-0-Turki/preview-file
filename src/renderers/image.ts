@@ -1,21 +1,9 @@
 import type { PreviewAdapter } from '../controls/types.js'
 import type { PreviewOptions, PreviewResult } from '../types.js'
-import { createMagnifier } from './interaction/magnifier.js'
-import { createZoomable } from './interaction/zoomable.js'
+import { isBlobResultData } from '../previewers/result-types.js'
+import { createRenderState } from './render-state.js'
+import { createMagnifier, createZoomable } from './interaction/index.js'
 import type { Renderer } from './types.js'
-
-interface ImageResultData {
-  readonly blob: Blob
-}
-
-function isImageResultData(data: unknown): data is ImageResultData {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'blob' in data &&
-    (data as { blob?: unknown }).blob instanceof Blob
-  )
-}
 
 const SUPPORTED_TYPES = [
   'image/jpeg',
@@ -38,16 +26,14 @@ const LENS_MAGNIFICATION_OPTIONS = [2, 4, 8, 12, 16]
 const LENS_SIZE_OPTIONS = [100, 140, 180, 220]
 
 interface ImageAttachment {
-  readonly urls: string[]
-  readonly zoomable: ReturnType<typeof createZoomable>
-  readonly magnifier: ReturnType<typeof createMagnifier>
+  destroy(): void
 }
 
 export class ImageRenderer implements Renderer {
   readonly name = 'image'
   readonly supportedTypes = SUPPORTED_TYPES
 
-  private readonly attachmentsByContainer = new WeakMap<HTMLElement, ImageAttachment>()
+  private readonly attachments = createRenderState<ImageAttachment>()
 
   canRender(type: string): boolean {
     return type.startsWith('image/')
@@ -58,7 +44,7 @@ export class ImageRenderer implements Renderer {
     result: PreviewResult,
     options?: PreviewOptions
   ): Promise<PreviewAdapter> {
-    if (!isImageResultData(result.data)) {
+    if (!isBlobResultData(result.data)) {
       throw new Error('The preview result has no image data.')
     }
 
@@ -108,7 +94,13 @@ export class ImageRenderer implements Renderer {
       borderWidth: options?.magnifier?.borderWidth ?? LENS_BORDER_WIDTH,
     })
 
-    this.attachmentsByContainer.set(container, { urls: [url], zoomable, magnifier })
+    this.attachments.set(container, {
+      destroy: () => {
+        magnifier.destroy()
+        zoomable.destroy()
+        URL.revokeObjectURL(url)
+      },
+    })
 
     return {
       canZoom: true,
@@ -149,16 +141,7 @@ export class ImageRenderer implements Renderer {
   }
 
   destroy(container: HTMLElement): void {
-    const attachment = this.attachmentsByContainer.get(container)
-    if (!attachment) return
-
-    attachment.magnifier.destroy()
-    attachment.zoomable.destroy()
-    for (const url of attachment.urls) {
-      URL.revokeObjectURL(url)
-    }
-
-    this.attachmentsByContainer.delete(container)
+    this.attachments.destroyFor(container)
   }
 
   private async waitForLoad(img: HTMLImageElement): Promise<void> {

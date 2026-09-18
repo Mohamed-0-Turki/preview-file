@@ -1,14 +1,16 @@
 import type { PreviewAdapter } from '../controls/types.js'
 import type { PreviewOptions, PreviewResult } from '../types.js'
 import { isRenderableWordFormat, isWordResultData } from '../previewers/result-types.js'
+import { createRenderState } from './render-state.js'
 import type { Renderer } from './types.js'
 import {
   computePageMetrics,
   createDocStage,
-  DOCVIEW_PADDING,
-  pageIndexAtCenter,
-  pageTopFromIndex,
+  createPagedDocController,
+  DOCVIEW_GAP,
   type PageMetrics,
+  type PagedDocController,
+  type PagedDocHost,
 } from './docview.js'
 
 interface WordAttachment {
@@ -25,7 +27,7 @@ export class WordRenderer implements Renderer {
   readonly name = 'word'
   readonly supportedTypes = ['application/vnd.word']
 
-  private readonly attachmentsByContainer = new WeakMap<HTMLElement, WordAttachment>()
+  private readonly attachments = createRenderState<WordAttachment>()
 
   canRender(type: string): boolean {
     return type === 'application/vnd.word'
@@ -85,181 +87,30 @@ export class WordRenderer implements Renderer {
     }
 
     const baseWidth = Math.max(1, wrapper.clientWidth)
-    let metrics: PageMetrics = computePageMetrics(positions, 24)
+    let metrics: PageMetrics = computePageMetrics(positions, DOCVIEW_GAP)
     const totalHeight = Math.max(metrics.totalHeight, Math.max(1, wrapper.getBoundingClientRect().height))
     metrics = { ...metrics, totalHeight }
 
-    let scale = 1
-    let fitMode: 'width' | 'page' | 'none' = 'none'
-    let singleMode = false
-    let activeIndex = 0
-    let pageChangeListeners: (() => void)[] = []
-
-    const availableWidth = (): number => Math.max(1, stage.viewport.clientWidth - DOCVIEW_PADDING * 2)
-    const availableHeight = (): number => Math.max(1, stage.viewport.clientHeight - DOCVIEW_PADDING * 2)
-
-    const layoutAll = (restoreDocY?: number): void => {
-      const scaleHeight = singleMode ? metrics.heights[activeIndex] * scale : metrics.totalHeight * scale
-      const translateY = singleMode ? -(metrics.offsets[activeIndex] ?? 0) * scale : 0
-      stage.layout(scale, baseWidth, metrics.totalHeight, Math.ceil(scaleHeight), translateY)
-      if (singleMode) {
-        stage.viewport.style.overflow = 'hidden'
-        stage.viewport.scrollTop = 0
-      } else {
-        stage.viewport.style.overflow = 'auto'
-        if (restoreDocY !== undefined) {
-          stage.viewport.scrollTop = Math.max(0, DOCVIEW_PADDING + restoreDocY * scale)
-        }
-      }
-    }
-
-    const notifyPageChange = (): void => {
-      for (const listener of pageChangeListeners) listener()
-    }
-
-    let scrollFrame = 0
-    const onScroll = (): void => {
-      if (scrollFrame) return
-      scrollFrame = window.requestAnimationFrame(() => {
-        scrollFrame = 0
-        notifyPageChange()
-      })
-    }
-    stage.viewport.addEventListener('scroll', onScroll, { passive: true })
-
-    const currentPageIndex = (): number => {
-      if (singleMode) return activeIndex
-      return Math.min(
-        metrics.heights.length - 1,
-        pageIndexAtCenter(
-          metrics,
-          stage.viewport.scrollTop,
-          stage.viewport.clientHeight,
-          scale,
-          DOCVIEW_PADDING
-        )
-      )
-    }
-
-    const jumpToPage = (pageNumber: number): void => {
-      const target = Math.max(0, Math.min(metrics.heights.length - 1, pageNumber))
-      if (singleMode) {
-        activeIndex = target
-        layoutAll()
-      } else {
-        stage.viewport.scrollTop = pageTopFromIndex(metrics, target, scale, DOCVIEW_PADDING)
-      }
-      notifyPageChange()
-    }
-
-    const applyFit = (mode: 'width' | 'page'): void => {
-      if (stage.viewport.clientWidth <= 0) return
-      fitMode = mode
-      const width = availableWidth()
-      const height = availableHeight()
-      if (mode === 'width') {
-        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, width / baseWidth))
-      } else {
-        const fitHeight = singleMode ? metrics.heights[activeIndex] : metrics.heights[metrics.indexOfMaxHeight]
-        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(width / baseWidth, height / fitHeight)))
-      }
-      layoutAll()
-      notifyPageChange()
-    }
-
-    const zoomBy = (factor: number): void => {
-      const anchor = (stage.viewport.scrollTop - DOCVIEW_PADDING) / scale
-      fitMode = 'none'
-      scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor))
-      layoutAll(anchor)
-      notifyPageChange()
-    }
-
-    const toggleSinglePage = (): void => {
-      if (!singleMode) {
-        activeIndex = currentPageIndex()
-        singleMode = true
-        layoutAll()
-      } else {
-        const anchor = activeIndex
-        singleMode = false
-        layoutAll()
-        stage.viewport.scrollTop = pageTopFromIndex(metrics, anchor, scale, DOCVIEW_PADDING)
-      }
-      notifyPageChange()
-    }
-
-    const resizeObserver =
-      typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(() => {
-            if (fitMode !== 'none') {
-              const mode = fitMode
-              fitMode = 'none'
-              applyFit(mode)
-            } else {
-              layoutAll()
-            }
-            notifyPageChange()
-          })
-        : null
-    resizeObserver?.observe(stage.viewport)
-
-    applyFit('width')
-
-    const adapter: PreviewAdapter = {
-      canZoom: true,
-      get zoomPercent() {
-        return Math.round(scale * 100)
+    const host: PagedDocHost = {
+      stage,
+      baseWidth,
+      pageCount: metrics.heights.length,
+      minScale: MIN_SCALE,
+      maxScale: MAX_SCALE,
+      zoomStep: ZOOM_STEP,
+      get metrics() {
+        return metrics
       },
-      zoomIn: () => zoomBy(ZOOM_STEP),
-      zoomOut: () => zoomBy(1 / ZOOM_STEP),
-      resetZoom: () => applyFit('width'),
-      pages: {
-        get page() {
-          return currentPageIndex() + 1
-        },
-        get pageCount() {
-          return metrics.heights.length
-        },
-        previousPage: () => jumpToPage(currentPageIndex() - 1),
-        nextPage: () => jumpToPage(currentPageIndex() + 1),
-        goToPage: (pageNumber) => jumpToPage(pageNumber - 1),
-        onPageChange: (listener) => {
-          pageChangeListeners.push(listener)
-          return () => {
-            pageChangeListeners = pageChangeListeners.filter((item) => item !== listener)
-          }
-        },
-      },
-      fit: {
-        fitWidth: () => applyFit('width'),
-        fitPage: () => applyFit('page'),
-        actualSize: () => {
-          const anchor = (stage.viewport.scrollTop - DOCVIEW_PADDING) / scale
-          fitMode = 'none'
-          scale = 1
-          layoutAll(anchor)
-          notifyPageChange()
-        },
-      },
-      singlePage: {
-        get enabled() {
-          return singleMode
-        },
-        toggle: toggleSinglePage,
-      },
+      onDestroy: () => stage.destroy(),
     }
 
-    this.attachmentsByContainer.set(container, {
-      destroy: () => {
-        resizeObserver?.disconnect()
-        stage.viewport.removeEventListener('scroll', onScroll)
-        if (scrollFrame) window.cancelAnimationFrame(scrollFrame)
-        stage.destroy()
-      },
+    const controller: PagedDocController = createPagedDocController(host)
+
+    this.attachments.set(container, {
+      destroy: () => controller.destroy(),
     })
 
-    return adapter
+    return controller.adapter
   }
 
   private renderLegacyFallback(container: HTMLElement, format: string): PreviewAdapter {
@@ -297,9 +148,6 @@ export class WordRenderer implements Renderer {
   }
 
   destroy(container: HTMLElement): void {
-    const attachment = this.attachmentsByContainer.get(container)
-    if (!attachment) return
-    attachment.destroy()
-    this.attachmentsByContainer.delete(container)
+    this.attachments.destroyFor(container)
   }
 }

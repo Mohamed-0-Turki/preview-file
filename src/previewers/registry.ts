@@ -1,26 +1,19 @@
-import type { Previewer } from './previewer.js'
-import type { PreviewerConstructor } from './types.js'
+import { createRegistry } from '../utils/index.js'
+import type { Previewer, PreviewerConstructor } from './types.js'
 
-const previewers = new Map<string, Previewer>()
+const registry = createRegistry<Previewer>({
+  getKeys: (previewer) => previewer.supportedMimeTypes,
+  canHandle: (previewer, mimeType) => previewer.canPreview(mimeType),
+})
 
 export function registerPreviewer(constructor: PreviewerConstructor): void {
-  const instance = new constructor()
-  for (const mimeType of instance.supportedMimeTypes) {
-    previewers.set(mimeType, instance)
-  }
+  registry.register(new constructor())
 }
 
 export function getPreviewer(mimeType: string): Previewer | undefined {
-  const exact = previewers.get(mimeType)
-  if (exact) return exact
-
-  for (const previewer of previewers.values()) {
-    if (previewer.canPreview(mimeType)) return previewer
-  }
-
-  return undefined
+  return registry.get(mimeType)
 }
 
 export function clearPreviewers(): void {
-  previewers.clear()
+  registry.clear()
 }

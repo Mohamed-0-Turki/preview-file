@@ -1,4 +1,4 @@
-import type { Previewer } from '../previewer.js'
+import type { Previewer } from './types.js'
 import type { FileInput, PreviewOptions, PreviewResult } from '../types.js'
 
 export class ImagePreviewer implements Previewer {

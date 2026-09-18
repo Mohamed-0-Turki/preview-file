@@ -1,11 +1,11 @@
 import { downloadBlob, mountControls } from './controls/index.js'
 import type { PreviewActions, PreviewAdapter } from './controls/index.js'
-import { getPreviewer } from './registry.js'
+import { getPreviewer } from './previewers/index.js'
 import { getRenderer } from './renderers/index.js'
 import { createSource } from './sources/index.js'
 import type { ResolvedSource, SourceInput } from './sources/index.js'
 import type { PreviewOptions, PreviewResult } from './types.js'
-import { detectType } from './utils/detect.js'
+import { detectType } from './utils/index.js'
 
 const activePreviews = new WeakMap<HTMLElement, () => void>()
 const previewGeneration = new WeakMap<HTMLElement, number>()

@@ -1,5 +1,3 @@
-import type { Previewer } from './previewer.js'
-
 export interface PreviewResult {
   readonly type: string
   readonly data: unknown
@@ -25,5 +23,3 @@ export interface FileInput {
   readonly mimeType: string
   readonly data: Uint8Array<ArrayBuffer>
 }
-
-export type PreviewerConstructor = new () => Previewer

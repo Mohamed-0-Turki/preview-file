@@ -1,4 +1,4 @@
-import type { FileInput, PreviewOptions, PreviewResult } from './types.js'
+import type { FileInput, PreviewOptions, PreviewResult } from '../types.js'
 
 export interface Previewer {
   readonly name: string
@@ -6,3 +6,5 @@ export interface Previewer {
   canPreview(mimeType: string): boolean
   preview(file: FileInput, options?: PreviewOptions): Promise<PreviewResult>
 }
+
+export type PreviewerConstructor = new () => Previewer

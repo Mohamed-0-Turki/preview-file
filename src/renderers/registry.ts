@@ -1,25 +1,19 @@
+import { createRegistry } from '../utils/index.js'
 import type { Renderer } from './types.js'
 
-const renderers = new Map<string, Renderer>()
+const registry = createRegistry<Renderer>({
+  getKeys: (renderer) => renderer.supportedTypes,
+  canHandle: (renderer, type) => renderer.canRender(type),
+})
 
 export function registerRenderer(constructor: new () => Renderer): void {
-  const instance = new constructor()
-  for (const type of instance.supportedTypes) {
-    renderers.set(type, instance)
-  }
+  registry.register(new constructor())
 }
 
 export function getRenderer(type: string): Renderer | undefined {
-  const exact = renderers.get(type)
-  if (exact) return exact
-
-  for (const renderer of renderers.values()) {
-    if (renderer.canRender(type)) return renderer
-  }
-
-  return undefined
+  return registry.get(type)
 }
 
 export function clearRenderers(): void {
-  renderers.clear()
+  registry.clear()
 }

@@ -1,4 +1,4 @@
-import { registerPreviewer } from '../registry.js'
+import { registerPreviewer } from './registry.js'
 
 import { CsvPreviewer } from './csv.js'
 import { ExcelPreviewer } from './excel.js'
@@ -20,3 +20,5 @@ export { ImagePreviewer } from './image.js'
 export { PdfPreviewer } from './pdf.js'
 export { TextPreviewer } from './text.js'
 export { WordPreviewer } from './word.js'
+export { getPreviewer, registerPreviewer, clearPreviewers } from './registry.js'
+export type { Previewer, PreviewerConstructor } from './types.js'

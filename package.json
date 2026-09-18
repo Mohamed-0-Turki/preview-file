@@ -21,7 +21,8 @@
   "scripts": {
     "build": "node scripts/build-icons.mjs && tsc",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "node scripts/build-icons.mjs && npm run typecheck && npm run build"
+    "lint": "oxlint",
+    "prepublishOnly": "node scripts/build-icons.mjs && npm run typecheck && npm run build && npm run lint"
   },
   "keywords": [
     "file",
@@ -51,6 +52,7 @@
     "access": "public"
   },
   "devDependencies": {
+    "oxlint": "^1.83.0",
     "typescript": "^5.5.0"
   },
   "dependencies": {

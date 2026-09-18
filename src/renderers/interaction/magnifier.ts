@@ -1,4 +1,5 @@
 import type { MagnifierOptions } from '../../types.js'
+import { clamp } from '../../utils/index.js'
 
 export interface Magnifier {
   setOptions(options: MagnifierOptions): void
@@ -9,10 +10,6 @@ const DEFAULT_LENS_SIZE = 120
 const DEFAULT_MAGNIFICATION = 8
 const DEFAULT_BORDER_WIDTH = 2
 const CROSSHAIR_SIZE = 14
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
-}
 
 function pointInRect(x: number, y: number, rect: DOMRect): boolean {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom

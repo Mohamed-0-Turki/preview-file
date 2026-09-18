@@ -1,9 +1,10 @@
-import type { Previewer } from '../previewer.js'
+import { extensionFrom } from '../utils/index.js'
+import type { Previewer } from './types.js'
 import type { FileInput, PreviewOptions, PreviewResult } from '../types.js'
 import type { SpreadsheetResultData } from './result-types.js'
 
 function detectSpreadsheetExtension(name: string): string {
-  const extension = name.split('.').pop()?.toLowerCase() ?? ''
+  const extension = extensionFrom(name)
   if (extension === 'xls' || extension === 'xlsx' || extension === 'xlsm' || extension === 'xlsb') return extension
   if (extension === 'xlt' || extension === 'xltx' || extension === 'xltm') return extension
   return 'xlsx'

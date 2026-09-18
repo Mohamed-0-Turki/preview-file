@@ -1,3 +1,5 @@
+import { clamp } from '../../utils/index.js'
+
 export interface ZoomableOptions {
   readonly minScale?: number
   readonly maxScale?: number
@@ -23,10 +25,6 @@ const DEFAULT_TRANSITION_MS = 150
 const DOUBLE_CLICK_WINDOW_MS = 300
 const CLICK_MOVE_TOLERANCE = 3
 const DOUBLE_CLICK_POSITION_TOLERANCE = 8
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
-}
 
 function normalizeDegrees(degrees: number): number {
   return ((degrees % 360) + 360) % 360

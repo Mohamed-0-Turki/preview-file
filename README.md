@@ -205,14 +205,14 @@ main thread (a console warning appears) and the PDF still renders.
 After a successful render, `preview()` mounts a sticky toolbar pinned to the top of the preview container. It behaves like a normal website navbar: it is part of the preview layout (never an overlay), stays visible while the preview content scrolls beneath it, and uses `position: sticky`, so it moves naturally with the page instead of being fixed to the browser viewport. Only the controls the active previewer actually implements appear:
 
 - **Pages** — previous / next / go-to-page (PDF, Word)
-- **View** — continuous ↔ single page (PDF, Word), thumbnails
+- **View** — continuous ↔ single page (PDF, Word), thumbnails, fullscreen (all)
 - **Zoom** — zoom in/out, reset, fit width / fit page / actual size, live % indicator
 - **Rotate** — clockwise / counter-clockwise, exact-degree input, reset rotation (PDF, images)
 - **Sheet** — sheet tabs (Excel, CSV)
 - **Search** — in-sheet/in-document search with result count (Excel, CSV, PDF)
 - **Text** — copy, word-wrap (text)
 - **Lens** — magnifier magnification & size (images)
-- **File** — download (all), fullscreen (all)
+- **File** — download (all)
 
 On narrow containers the least-critical groups collapse into a **⋯** overflow menu while Pages, Zoom, View and Sheet stay pinned to the bar, so rotation and view controls remain one tap away. The toolbar is keyboard-accessible (`radiogroup` segments with roving tabindex, arrow keys, visible focus rings) and honors `prefers-reduced-motion`.
 
@@ -251,7 +251,7 @@ export function FilePreview({ source }: { source: File | string | null }) {
 
 ### Next.js (App Router)
 
-Preview components must be **client** components (`"use client"`). To keep the heavy preview engine out of the server bundle entirely, load the previewer itself with `next/dynamic` and `ssr: false`. See the interactive demo in [`site/app/examples`](site/app/examples).
+Preview components must be **client** components (`"use client"`). To keep the heavy preview engine out of the server bundle entirely, load the previewer itself with `next/dynamic` and `ssr: false`.
 
 ```tsx
 // components/FilePreview.tsx
@@ -537,17 +537,55 @@ Modern evergreen browsers (Chrome, Edge, Firefox, Safari). The package uses `Wea
 
 ```bash
 npm install
-npm run typecheck   # tsc --noEmit
+npm run typecheck   # tsc --noEmit (noUnusedLocals/Parameters, verbatimModuleSyntax)
+npm run lint        # oxlint
 npm run build       # emits dist/
 ```
 
-Docs and interactive demo live in [`site/`](site) — a Next.js app that consumes the **built** package through its public API:
+### Project structure
+
+The library is organized as layered, side-effect-free modules. Each layer holds a
+`README.md` describing its contract, and `index.ts` exposes its public surface.
+
+```
+src/
+  index.ts          # public API (re-exports from the layers below)
+  preview.ts        # orchestration: resolve → detect → previewer → renderer → controls
+  types.ts          # cross-cutting types (PreviewOptions, PreviewResult, FileInput, …)
+  pdf-worker.ts     # pdf.js worker URL resolution (setPdfWorkerSrc)
+  sources/          # SourceInput → ResolvedSource (File/Blob/string normalization)
+  previewers/       # file → typed, capability-tagged PreviewResult
+    registry.ts     # previewer registry (built on the shared utils/registry factory)
+    types.ts        # Previewer contract
+    result-types.ts # ResultData guards (`isWordResultData`, `isCsvResultData`, …)
+  renderers/        # result → DOM + PreviewAdapter (toolbar capabilities)
+    registry.ts     # renderer registry (shared factory)
+    types.ts        # Renderer contract
+    docview.ts      # shared paged-document stage + PagedDocController (PDF & Word)
+    render-state.ts # per-container render state helper
+    interaction/    # image magnification (loupe) and zoom/pan
+    virtual-table.ts# shared virtualized grid (Excel & CSV)
+  controls/         # sticky capability-driven toolbar
+  utils/            # framework-agnostic helpers (registry, detectType, parseCsv, …)
+docs/
+  adr/              # architecture decision records (why the design is what it is)
+  templates/        # copy-paste scaffolding for new previewers/renderers/controls
+  TESTING.md        # testing strategy & recommended test locations
+  EXTENDING.md      # extension points & plugin-style integration
+```
+
+- **AI agents:** read [`AI_GUIDE.md`](AI_GUIDE.md) before editing — it covers the hard
+  rules, standard workflows and the verification loop.
+- See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design, and
+  [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+
+The interactive demo lives in [`playground/`](playground) — a React + Vite app that consumes the **built** package from the repo root via a `file:` dependency:
 
 ```bash
-npm run build        # root first, so site/ installs a fresh dist/
-cd site
+npm run build        # root first, so the playground installs a fresh dist/
+cd playground
 npm install
-npm run dev          # http://localhost:3000
+npm run dev          # http://localhost:5173 (predev rebuilds the package automatically)
 ```
 
 ---

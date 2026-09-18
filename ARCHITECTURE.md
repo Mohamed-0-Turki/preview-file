@@ -18,7 +18,7 @@ This document describes how `preview-file` is organized and how the preview pipe
  detectType()            src/utils/detect.ts        → MIME type
         │
         ▼
- getPreviewer(mime)      src/registry.ts            → Previewer (or error card)
+ getPreviewer(mime)      src/previewers/registry.ts → Previewer (or error card)
         │
         ▼
  previewer.preview()     src/previewers/*.ts        → PreviewResult { type, data }
@@ -42,22 +42,30 @@ This document describes how `preview-file` is organized and how the preview pipe
 src/
   index.ts             Public API surface (everything exported from here is stable)
   preview.ts           Orchestration: preview(), clearPreview(), error/state cards
-  registry.ts          Previewer registry (register/get/clear by MIME)
-  previewer.ts         Previewer interface
   types.ts             Shared types (PreviewResult, PreviewOptions, FileInput, …)
+  pdf-worker.ts        pdf.js worker URL resolution (setPdfWorkerSrc, CDN default)
   sources/             SourceInput → ResolvedSource (File / Blob / fetch URL)
-  utils/detect.ts      MIME resolution from declared type + extension
-  utils/mime.ts        Extension → MIME table
+  utils/               Framework-agnostic helpers (no imports from other layers)
+    detect.ts          MIME resolution from declared type + extension
+    extension.ts       extensionFrom(name) shared by detection and vendors
+    mime.ts            Extension → MIME table
+    csv.ts             parseCsv (moved here so both renderers and previewers reuse it)
+    math.ts            clamp()
+    registry.ts        createRegistry<T>() — generic register/get/clear factory
+    index.ts           Barrel export
   previewers/          One Previewer per format; maps a FileInput to a typed result
     index.ts           Registers all built-in previewers (side effect of import)
+    registry.ts        Previewer registry (built on utils/registry's createRegistry)
+    types.ts           Previewer interface
     result-types.ts    Discriminators for result.data shapes
   renderers/           One Renderer per result type; produces DOM + PreviewAdapter
     index.ts           Registers all built-in renderers (side effect of import)
-    registry.ts        Renderer registry (register/get/clear by result type)
+    registry.ts        Renderer registry (built on utils/registry's createRegistry)
     types.ts           Renderer interface
-    docview.ts         Shared "paged document" canvas (PDF + Word share it)
+    render-state.ts    createRenderState() — per-container render state helper
+    docview.ts         Shared "paged document" stage + PagedDocController (PDF + Word)
     virtual-table.ts   Shared virtualized table (Excel + CSV share it)
-    interaction/       Shared pointer/wheel interaction helpers
+    interaction/       Shared pointer/wheel interaction helpers (magnifier, zoomable)
   controls/            Toolbar, download helper, capability types
     toolbar.ts         mountControls(): sticky navbar toolbar + overflow menu
     download.ts        downloadBlob(): Blob → <a download> fallback
@@ -111,9 +119,11 @@ CSV, text and image are dependency-free. Because these imports happen only insid
 
 Shared infrastructure:
 
-- **`docview.ts`** — the paged-document canvas used by PDF and Word: real page geometry, page shadows, continuous vs. single-page layout, zoom/fit transforms, enabled by the `PreviewAdapter`'s `pages`/`fit`/`singlePage`/`zoom` surface.
+- **`docview.ts`** — the paged-document canvas used by PDF and Word: real page geometry, page shadows, continuous vs. single-page layout, zoom/fit transforms. `createPagedDocController(host)` centralizes *all* page-layout state (scale, fit mode, current page, single-page mode, listeners); `createPagedDocStage()` owns the DOM stage. PDF and Word both drive it: they provide page metrics and rendering callbacks, the controller turns them into the `PreviewAdapter`'s `pages`/`fit`/`singlePage`/`zoom` surface. `PagedDocViewState` (scale + metrics) flows back through `onLayout`/`onScrollFrame` so both renderers draw only visible pages.
+- **`render-state.ts`** — `createRenderState<T>()` replaces the per-renderer `WeakMap<container, T>` boilerplate; every renderer registers its attachment and a single `destroy()` unwinds it.
 - **`virtual-table.ts`** — the virtualized table used by Excel and CSV: only visible rows/windows are materialized in the DOM, so huge sheets stay cheap.
-- **`interaction/`** — shared pointer capture, wheel-to-zoom, and drag handling.
+- **`interaction/`** — shared pointer capture, wheel-to-zoom, and drag handling (magnifier lens + zoomable canvas).
+- **`utils/registry.ts`** — `createRegistry<T>()` is the single register/get/clear factory behind both `previewers/registry.ts` and `renderers/registry.ts`, so lookup rules (exact key match, then `canHandle` predicate) are consistent across layers.
 
 ### 6. The capability contract — `PreviewAdapter` (in `src/controls/types.ts`)
 
@@ -167,7 +177,8 @@ A renderer returns `void` (or `undefined`) for a plain, non-interactive view —
 - Styling is injected as a single `#pf-glass-styles` `style` element — one `pf-*` classnames namespace, scoped to the container, no shadow DOM or external styles were introduced.
 - Accessibility: segmented controls are `radiogroup` with roving tabindex + arrow keys; toggles expose `aria-pressed`; focus-visible rings everywhere; `prefers-reduced-motion` respected; coarse-pointer targets are ≥ 38 px.
 - **Icons:** local Lucide SVG assets in `src/icons/` (shipped to `dist/icons/`), inlined at runtime as `stroke="currentColor"` markup so each icon inherits the surrounding control styling. `scripts/build-icons.mjs` generates the `src/icons/icons.ts` string module from those assets and copies the raw SVGs (`+ NOTICE.md`) into `dist/` for the published package; icons are rendered at uniform 18px and marked `aria-hidden` (buttons carry their own `aria-label`/`title`).
-- The live zoom `%` indicator (when `zoomPercent` exists) polls the adapter a couple of times a second to stay current after wheel/fit interactions; the rotation input syncs from `rotate.rotation` the same way.
+- The live zoom `%` indicator (when `zoomPercent` exists) polls the adapter roughly every 300 ms to stay current after wheel/fit interactions; the rotation input syncs from `rotate.rotation` the same way.
+- Fullscreen is a single button in the **View** group; download lives in the **File** group.
 
 Because the toolbar is *derived* from the adapter, adding a new control is: (1) define a capability interface, (2) implement it in a renderer, (3) add a group in `toolbar.ts`.
 
@@ -194,6 +205,7 @@ Word documents are paginated by `docx-preview` using *explicit* breaks only (`w:
 
 ## Verification
 
-- `npm run typecheck` — TSC no-emit (the package compiles cleanly; no bundler-specific module declarations like `*?raw` are required).
+- `npm run typecheck` — TSC no-emit (`strict`, `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`; every internal import uses explicit `.js` specifiers and `import type` for type-only imports).
+- `npm run lint` — oxlint (default correctness rules + TS/oxc plugins; configured in `.oxlintrc.json`).
 - `npm run build` — emits `dist/`.
-- `npm test` is not scripted; the interactive demo (`site/`) and the manual matrix (PDF/DOCX/XLSX/CSV/images, file/URL/blob sources) are the current smoke layer.
+- `npm test` is not scripted; the interactive demo ([`playground/`](playground), a React + Vite app consuming the built package via `file:..`) and the manual matrix (PDF/DOCX/XLSX/CSV/images, file/URL/blob sources) are the current smoke layer.

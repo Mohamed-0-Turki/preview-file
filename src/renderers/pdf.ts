@@ -1,22 +1,26 @@
-import type { PreviewAdapter, PageNavigation } from '../controls/types.js'
+import type { PreviewAdapter } from '../controls/types.js'
 import type { PreviewOptions, PreviewResult } from '../types.js'
 import { resolvePdfWorkerSrc } from '../pdf-worker.js'
 import { isBlobResultData } from '../previewers/result-types.js'
+import { createRenderState } from './render-state.js'
 import type { Renderer } from './types.js'
 import {
   computePageMetrics,
   createDocStage,
+  createPagedDocController,
   DOCVIEW_GAP,
   DOCVIEW_PADDING,
-  pageIndexAtCenter,
-  pageTopFromIndex,
   type PageMetrics,
+  type PagedDocController,
+  type PagedDocHost,
+  type PagedDocViewState,
 } from './docview.js'
+import type { PDFPageProxy } from 'pdfjs-dist'
 
 interface PageRecord {
   readonly wrapper: HTMLDivElement
   readonly canvas: HTMLCanvasElement
-  readonly page: import('pdfjs-dist').PDFPageProxy
+  readonly page: PDFPageProxy
   readonly baseWidth: number
   readonly baseHeight: number
   renderedKey: string
@@ -35,7 +39,7 @@ export class PdfRenderer implements Renderer {
   readonly name = 'pdf'
   readonly supportedTypes = ['application/pdf']
 
-  private readonly attachmentsByContainer = new WeakMap<HTMLElement, PdfAttachment>()
+  private readonly attachments = createRenderState<PdfAttachment>()
 
   canRender(type: string): boolean {
     return type === 'application/pdf'
@@ -88,12 +92,7 @@ export class PdfRenderer implements Renderer {
 
     const maxBaseWidth = Math.max(1, ...records.map((record) => record.baseWidth))
 
-    let scale = 1
     let rotation = 0
-    let fitMode: 'width' | 'page' | 'none' = 'none'
-    let singleMode = false
-    let activeIndex = 0
-    let pageChangeListeners: (() => void)[] = []
     let metrics: PageMetrics = computePageMetrics([], DOCVIEW_GAP)
 
     const widthOf = (record: PageRecord): number =>
@@ -119,26 +118,7 @@ export class PdfRenderer implements Renderer {
       }
     }
 
-    const availableWidth = (): number => Math.max(1, stage.viewport.clientWidth - DOCVIEW_PADDING * 2)
-    const availableHeight = (): number => Math.max(1, stage.viewport.clientHeight - DOCVIEW_PADDING * 2)
-
-    const layoutAll = (restoreDocY?: number): void => {
-      const scaleHeight = singleMode ? metrics.heights[activeIndex] * scale : metrics.totalHeight * scale
-      const translateY = singleMode ? -(metrics.offsets[activeIndex] ?? 0) * scale : 0
-      stage.layout(scale, maxBaseWidth, metrics.totalHeight, Math.ceil(scaleHeight), translateY)
-      if (singleMode) {
-        stage.viewport.style.overflow = 'hidden'
-        stage.viewport.scrollTop = 0
-      } else {
-        stage.viewport.style.overflow = 'auto'
-        if (restoreDocY !== undefined) {
-          stage.viewport.scrollTop = Math.max(0, DOCVIEW_PADDING + restoreDocY * scale)
-        }
-      }
-      renderVisiblePages()
-    }
-
-    const renderPage = async (record: PageRecord): Promise<void> => {
+    const renderPage = async (record: PageRecord, scale: number): Promise<void> => {
       const dpr = Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR)
       const key = `${scale.toFixed(4)}:${rotation}:${dpr}`
       if (record.renderedKey === key) return
@@ -157,32 +137,45 @@ export class PdfRenderer implements Renderer {
       }
     }
 
-    const renderVisiblePages = (): void => {
+    const renderVisiblePages = (scale: number, currentMetrics: PageMetrics): void => {
       const scrollTop = stage.viewport.scrollTop
       const viewportHeight = stage.viewport.clientHeight
       const from = scrollTop - viewportHeight
       const to = scrollTop + viewportHeight * 2
       for (let index = 0; index < records.length; index += 1) {
-        const top = DOCVIEW_PADDING + (metrics.offsets[index] ?? 0) * scale
-        const bottom = top + (metrics.heights[index] ?? 0) * scale
-        if (bottom >= from && top <= to) void renderPage(records[index] as PageRecord)
+        const top = DOCVIEW_PADDING + (currentMetrics.offsets[index] ?? 0) * scale
+        const bottom = top + (currentMetrics.heights[index] ?? 0) * scale
+        if (bottom >= from && top <= to) void renderPage(records[index] as PageRecord, scale)
       }
     }
 
-    const notifyPageChange = (): void => {
-      for (const listener of pageChangeListeners) listener()
+    const renderVisible = (view: PagedDocViewState): void => {
+      renderVisiblePages(view.scale, view.metrics)
     }
 
-    let scrollFrame = 0
-    const onScroll = (): void => {
-      if (scrollFrame) return
-      scrollFrame = window.requestAnimationFrame(() => {
-        scrollFrame = 0
-        renderVisiblePages()
-        notifyPageChange()
-      })
+    const host: PagedDocHost = {
+      stage,
+      baseWidth: maxBaseWidth,
+      pageCount: records.length,
+      minScale: MIN_SCALE,
+      maxScale: MAX_SCALE,
+      zoomStep: ZOOM_STEP,
+      get metrics() {
+        return metrics
+      },
+      onScrollFrame: renderVisible,
+      onLayout: renderVisible,
+      onDestroy: () => {
+        intersectionObserver?.disconnect()
+        stage.destroy()
+        void loadingTask.destroy()
+      },
     }
-    stage.viewport.addEventListener('scroll', onScroll, { passive: true })
+
+    applyBaseSizes()
+    buildMetrics()
+
+    const controller: PagedDocController = createPagedDocController(host)
 
     const intersectionObserver =
       typeof IntersectionObserver !== 'undefined'
@@ -191,7 +184,7 @@ export class PdfRenderer implements Renderer {
               for (const entry of entries) {
                 if (entry.isIntersecting) {
                   const record = records.find((item) => item.wrapper === entry.target)
-                  if (record) void renderPage(record)
+                  if (record) void renderPage(record, controller.scale)
                 }
               }
             },
@@ -200,166 +193,31 @@ export class PdfRenderer implements Renderer {
         : null
     for (const record of records) intersectionObserver?.observe(record.wrapper)
 
-    const currentPageIndex = (): number => {
-      if (records.length === 0) return 0
-      if (singleMode) return activeIndex
-      return Math.min(
-        records.length - 1,
-        pageIndexAtCenter(
-          metrics,
-          stage.viewport.scrollTop,
-          stage.viewport.clientHeight,
-          scale,
-          DOCVIEW_PADDING
-        )
-      )
-    }
-
-    const jumpToPage = (pageNumber: number): void => {
-      const target = Math.max(0, Math.min(records.length - 1, pageNumber))
-      if (singleMode) {
-        activeIndex = target
-        layoutAll()
-      } else {
-        stage.viewport.scrollTop = pageTopFromIndex(metrics, target, scale, DOCVIEW_PADDING)
-        renderVisiblePages()
-      }
-      notifyPageChange()
-    }
-
-    const applyFit = (mode: 'width' | 'page'): void => {
-      if (stage.viewport.clientWidth <= 0) return
-      fitMode = mode
-      const width = availableWidth()
-      const height = availableHeight()
-      if (mode === 'width') {
-        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, width / maxBaseWidth))
-      } else {
-        const fitHeight = singleMode ? metrics.heights[activeIndex] : metrics.heights[metrics.indexOfMaxHeight]
-        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(width / maxBaseWidth, height / fitHeight)))
-      }
-      layoutAll()
-      notifyPageChange()
-    }
-
-    const zoomBy = (factor: number): void => {
-      const anchor = (stage.viewport.scrollTop - DOCVIEW_PADDING) / scale
-      fitMode = 'none'
-      scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor))
-      layoutAll(anchor)
-      notifyPageChange()
-    }
-
     const setRotation = (next: number): void => {
       rotation = ((next % 360) + 360) % 360
       applyBaseSizes()
       buildMetrics()
-      const anchor = (stage.viewport.scrollTop - DOCVIEW_PADDING) / scale
-      layoutAll(anchor)
-      renderVisiblePages()
-      notifyPageChange()
+      const anchor = (stage.viewport.scrollTop - DOCVIEW_PADDING) / controller.scale
+      controller.layoutAll(anchor)
+      controller.notifyPageChange()
     }
-
-    const toggleSinglePage = (): void => {
-      if (!singleMode) {
-        activeIndex = currentPageIndex()
-        singleMode = true
-        layoutAll()
-      } else {
-        const anchor = activeIndex
-        singleMode = false
-        stage.viewport.scrollTop = pageTopFromIndex(metrics, anchor, scale, DOCVIEW_PADDING)
-        layoutAll()
-      }
-      notifyPageChange()
-    }
-
-    const navigation: PageNavigation = {
-      get page() {
-        return currentPageIndex() + 1
-      },
-      get pageCount() {
-        return records.length
-      },
-      previousPage: () => jumpToPage(currentPageIndex() - 1),
-      nextPage: () => jumpToPage(currentPageIndex() + 1),
-      goToPage: (pageNumber) => jumpToPage(pageNumber - 1),
-      onPageChange: (listener) => {
-        pageChangeListeners.push(listener)
-        return () => {
-          pageChangeListeners = pageChangeListeners.filter((item) => item !== listener)
-        }
-      },
-    }
-
-    const resizeObserver =
-      typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(() => {
-            if (fitMode !== 'none') {
-              const mode = fitMode
-              fitMode = 'none'
-              applyFit(mode)
-            } else {
-              layoutAll()
-            }
-          })
-        : null
-    resizeObserver?.observe(stage.viewport)
-
-    applyBaseSizes()
-    buildMetrics()
-    applyFit('width')
 
     const adapter: PreviewAdapter = {
-      canZoom: true,
-      get zoomPercent() {
-        return Math.round(scale * 100)
-      },
-      zoomIn: () => zoomBy(ZOOM_STEP),
-      zoomOut: () => zoomBy(1 / ZOOM_STEP),
-      resetZoom: () => applyFit('width'),
-      pages: navigation,
-      fit: {
-        fitWidth: () => applyFit('width'),
-        fitPage: () => applyFit('page'),
-        actualSize: () => {
-          const anchor = (stage.viewport.scrollTop - DOCVIEW_PADDING) / scale
-          fitMode = 'none'
-          scale = 1
-          layoutAll(anchor)
-          notifyPageChange()
-        },
-      },
+      ...controller.adapter,
       rotate: {
         rotateClockwise: () => setRotation(rotation + 90),
         rotateCounterclockwise: () => setRotation(rotation - 90),
       },
-      singlePage: {
-        get enabled() {
-          return singleMode
-        },
-        toggle: toggleSinglePage,
-      },
     }
 
-    this.attachmentsByContainer.set(container, {
-      destroy: () => {
-        intersectionObserver?.disconnect()
-        resizeObserver?.disconnect()
-        stage.viewport.removeEventListener('scroll', onScroll)
-        if (scrollFrame) window.cancelAnimationFrame(scrollFrame)
-        stage.destroy()
-        void loadingTask.destroy()
-      },
+    this.attachments.set(container, {
+      destroy: () => controller.destroy(),
     })
 
     return adapter
   }
 
   destroy(container: HTMLElement): void {
-    const attachment = this.attachmentsByContainer.get(container)
-    if (!attachment) return
-    attachment.destroy()
-    this.attachmentsByContainer.delete(container)
+    this.attachments.destroyFor(container)
   }
 }

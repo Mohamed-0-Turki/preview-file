@@ -1,3 +1,4 @@
+import { extensionFrom } from './extension.js'
 import { mimeFromExtension } from './mime.js'
 
 export function detectType(name: string, declaredType?: string): string {
@@ -6,8 +7,5 @@ export function detectType(name: string, declaredType?: string): string {
     return declared
   }
 
-  const lastDot = name.lastIndexOf('.')
-  const extension = lastDot > 0 ? name.slice(lastDot + 1) : ''
-
-  return mimeFromExtension(extension) ?? 'application/octet-stream'
+  return mimeFromExtension(extensionFrom(name)) ?? 'application/octet-stream'
 }

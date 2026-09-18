@@ -735,10 +735,10 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
         )
         if (actions.rotate.resetRotation) {
           row.appendChild(
-makeButton(ICONS.resetRotation, 'Reset rotation (0°)', () => {
-            actions.rotate?.resetRotation?.()
-            refresh()
-          })
+            makeButton(ICONS.resetRotation, 'Reset rotation (0°)', () => {
+              actions.rotate?.resetRotation?.()
+              refresh()
+            })
           )
         }
       }
