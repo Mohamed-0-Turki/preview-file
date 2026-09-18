@@ -63,7 +63,8 @@ src/
     registry.ts        Renderer registry (built on utils/registry's createRegistry)
     types.ts           Renderer interface
     render-state.ts    createRenderState() — per-container render state helper
-    docview.ts         Shared "paged document" stage + PagedDocController (PDF + Word)
+    legacy-fallback.ts Shared "Preview unavailable" card (Word + Presentation fallbacks)
+    docview.ts         Shared "paged document" stage + PagedDocController (PDF + Word + PowerPoint)
     virtual-table.ts   Shared virtualized table (Excel + CSV share it)
     interaction/       Shared pointer/wheel interaction helpers (magnifier, zoomable)
   controls/            Toolbar, download helper, capability types
@@ -104,8 +105,9 @@ Previewers are *cheap and pure*: they repackage the bytes into a normalized `Pre
 | PDF | `application/pdf` (and `x-pdf`/`acrobat`/`text/pdf` aliases) | `application/pdf` | `{ blob }` |
 | Word | `application/msword`, `application/vnd.word`-family MIMEs | `application/vnd.word` | `{ blob, format }` |
 | Excel | `application/vnd.ms-excel`, `spreadsheetml`, `ms-excel` | `application/vnd.spreadsheet` | `{ blob, format }` |
+| Presentation | `application/vnd.ms-powerpoint` (+ `presentationml` family), `application/vnd.oasis.opendocument.presentation` | `application/vnd.presentation` | `{ blob, format }` |
 
-Word and Excel result types are normalized so that renderers don't need to know every vendor MIME. Word's `format` (`docx|docm|dotx|dotm|doc|dot`) lets the renderer decide between a real paginated render and the legacy fallback.
+Word, Excel and Presentation result types are normalized so that renderers don't need to know every vendor MIME. Their `format` fields let the renderer decide between a real render and the legacy fallback: Word's `docx|docm|dotx|dotm` render, the rest fall back; Presentation's `pptx|pptm|potx|potm|ppsx|ppsm` render, while binary `ppt|pps|pot` and OpenDocument `odp` fall back.
 
 ### 5. Renderers — `src/renderers/*.ts`
 
@@ -114,12 +116,13 @@ Each renderer is lazy about its heavy dependency:
 - PDF → `await import('pdfjs-dist')`; the worker is *not* bundled. `pdf.worker.mjs` is referenced by URL (`GlobalWorkerOptions.workerSrc`): a version-pinned CDN build by default, overridable via `setPdfWorkerSrc()` or `PreviewOptions.workerSrc` for self-hosted / CSP-locked deployments. This keeps the library free of bundler-specific imports (`?raw`, `?url`, `?worker`) so it resolves identically under Vite, webpack, Rollup, Next.js and vanilla ESM. If the worker URL cannot be loaded, pdf.js falls back to a main-thread fake worker and the preview still renders.
 - Word → `await import('docx-preview')`.
 - Excel → `await import('xlsx')`.
+- Presentation → `await import('pptx-viewer')`. Slides are parsed once via `loadPresentation()` (returns `slideSize` in px + slide models + a `cleanup()`), then rendered to per-slide DOM/SVG with `renderSlideToElement()`. Each slide is a page in the shared paged-document controller, so navigation, zoom, fit and continuous/single-page mode come from `docview.ts`; visible slides are materialized lazily via `IntersectionObserver`, wrapped so a failed slide degrades to an in-slide notice. The host requests `initialFit: 'page'` so a whole slide always fits the container.
 
 CSV, text and image are dependency-free. Because these imports happen only inside `render()`, a consumer that never opens a PDF never pays for pdf.js.
 
 Shared infrastructure:
 
-- **`docview.ts`** — the paged-document canvas used by PDF and Word: real page geometry, page shadows, continuous vs. single-page layout, zoom/fit transforms. `createPagedDocController(host)` centralizes *all* page-layout state (scale, fit mode, current page, single-page mode, listeners); `createPagedDocStage()` owns the DOM stage. PDF and Word both drive it: they provide page metrics and rendering callbacks, the controller turns them into the `PreviewAdapter`'s `pages`/`fit`/`singlePage`/`zoom` surface. `PagedDocViewState` (scale + metrics) flows back through `onLayout`/`onScrollFrame` so both renderers draw only visible pages.
+- **`docview.ts`** — the paged-document canvas used by PDF, Word and PowerPoint: real page geometry, page shadows, continuous vs. single-page layout, zoom/fit transforms. `createPagedDocController(host)` centralizes *all* page-layout state (scale, fit mode, current page, single-page mode, listeners); `createDocStage()` owns the DOM stage. Formats drive it by providing page metrics and (optionally) a rendering callback; the controller turns them into the `PreviewAdapter`'s `pages`/`fit`/`singlePage`/`zoom` surface. Hosts can pick their initial fit via `host.initialFit` (slide decks use `'page'` so whole slides are visible). `PagedDocViewState` (scale + metrics) flows back through `onLayout`/`onScrollFrame` so renderers only draw visible pages.
 - **`render-state.ts`** — `createRenderState<T>()` replaces the per-renderer `WeakMap<container, T>` boilerplate; every renderer registers its attachment and a single `destroy()` unwinds it.
 - **`virtual-table.ts`** — the virtualized table used by Excel and CSV: only visible rows/windows are materialized in the DOM, so huge sheets stay cheap.
 - **`interaction/`** — shared pointer capture, wheel-to-zoom, and drag handling (magnifier lens + zoomable canvas).
@@ -189,12 +192,23 @@ Because the toolbar is *derived* from the adapter, adding a new control is: (1) 
 ## Rendering philosophy
 
 - **The library never owns the layout.** It renders at 100 % of whatever element the caller provides (auto-set to `position: relative` if static). No modals, no full-page takeover, no injected page chrome — the toolbar lives *inside* the box as a sticky navbar with the renderer's content in a stage below it.
-- **Real geometry, not stretch-to-fit.** PDF and Word pages keep their intrinsic size and are paginated/navigated, rather than being squeezed to the preview box.
+- **Real geometry, not stretch-to-fit.** PDF and Word pages keep their intrinsic size and are paginated/navigated, rather than being squeezed to the preview box; PowerPoint slides keep their native aspect ratio and are fitted as whole slides.
 - **Read-only data view.** Excel/CSV are rendered as tabular data views (virtualized), focused on inspection speed.
 
 ## Word pagination (known boundary)
 
 Word documents are paginated by `docx-preview` using *explicit* breaks only (`w:br w:type="page"`, `pageBreakBefore`, section properties, page size/orientation changes). Automatic page estimates cannot be reconstructed exactly — flowing text is not measured back into a page model. `breakPages: true` keeps explicit page breaks faithful. If you need exact, computed pagination, recommend converting the document to PDF and previewing that instead (the PDF pipeline then applies its own exact geometry).
+
+## Presentation rendering (known boundaries)
+
+PowerPoint slides are rendered natively in the browser by `pptx-viewer` (MIT, single `fflate` dependency) against the OOXML package. It covers slide geometry, text (including master/layout default text styles), shapes, images, charts, tables, SmartArt-flattened diagrams, themes, gradients, patterns and embedded fonts.
+
+Limitations to be aware of:
+
+- **No time-based content**: slide transitions, and video/audio are not replayed (static rendering only).
+- **Legacy binary formats**: `.ppt`/`.pps`/`.pot` are not OOXML packages and are not rendered — they show the standard fallback card with a Download button.
+- **OpenDocument (.odp)** is not rendered either (no mature browser renderer); same fallback card.
+- **Per-slide resilience**: a slide that fails to render (e.g. an unusual construct) degrades to an in-slide notice instead of failing the whole preview. A presentation that cannot be parsed at all renders the standard error card.
 
 ## Extension checklist
 

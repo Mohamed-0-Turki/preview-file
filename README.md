@@ -1,6 +1,6 @@
 # preview-file
 
-A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, Excel, CSV, text and image files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, spreadsheet-style data views for Excel/CSV, and a sticky top toolbar that behaves like a navbar and only shows the controls the active preview supports.
+A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, PowerPoint, Excel, CSV, text and image files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, native slide rendering for PowerPoint, spreadsheet-style data views for Excel/CSV, and a sticky top toolbar that behaves like a navbar and only shows the controls the active preview supports.
 
 - **No framework required.** Vanilla JS is a first-class citizen; React, Vue, Svelte and Angular use the exact same `preview()` call.
 - **Capability-driven controls.** Each previewer declares what it can do and the toolbar renders exactly that (zoom, pages, sheets, search, rotate, thumbnails, lens, download, fullscreen).
@@ -16,6 +16,8 @@ A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, 
 | PDF | `.pdf` | Rendered pages with real A4 geometry, page shadows, continuous / single-page mode, go-to-page | pdf.js |
 | Word | `.docx`, `.docm`, `.dotx`, `.dotm` | Paginated document with headings, tables and embedded images | docx-preview |
 | Word (legacy) | `.doc`, `.dot` | In-preview fallback card with a Download button | Binary format not rendered |
+| PowerPoint | `.pptx`, `.pptm`, `.potx`, `.potm`, `.ppsx`, `.ppsm` | Native slide rendering with layout, colors, shapes, charts, tables and embedded images; slides-as-pages navigation, zoom, fit, continuous / single-page mode | pptx-viewer |
+| PowerPoint (legacy / OpenDocument) | `.ppt`, `.pps`, `.pot`, `.odp` | In-preview fallback card with a Download button | Binary / OpenDocument formats not rendered in-browser |
 | Excel | `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.xltx`, `.xltm`, `.xlt` | Sheet tabs, navigation, search | SheetJS |
 | CSV | `.csv` | Virtualized table, sheet-style navigation, search | Built-in (no dependency) |
 | Text | `.txt`, `.md` (as `text/plain`) | Copy, word-wrap toggle | Built-in |
@@ -204,8 +206,8 @@ main thread (a console warning appears) and the PDF still renders.
 
 After a successful render, `preview()` mounts a sticky toolbar pinned to the top of the preview container. It behaves like a normal website navbar: it is part of the preview layout (never an overlay), stays visible while the preview content scrolls beneath it, and uses `position: sticky`, so it moves naturally with the page instead of being fixed to the browser viewport. Only the controls the active previewer actually implements appear:
 
-- **Pages** — previous / next / go-to-page (PDF, Word)
-- **View** — continuous ↔ single page (PDF, Word), thumbnails, fullscreen (all)
+- **Pages** — previous / next / go-to-page (PDF, Word, PowerPoint)
+- **View** — continuous ↔ single page (PDF, Word, PowerPoint), thumbnails, fullscreen (all)
 - **Zoom** — zoom in/out, reset, fit width / fit page / actual size, live % indicator
 - **Rotate** — clockwise / counter-clockwise, exact-degree input, reset rotation (PDF, images)
 - **Sheet** — sheet tabs (Excel, CSV)
@@ -425,7 +427,8 @@ interface ResolvedSource {
 
 interface PreviewResult {
   readonly type: string      // e.g. "application/pdf", "application/vnd.word",
-                             // "application/vnd.spreadsheet", "text/csv", "text/plain", "image/png"
+                             // "application/vnd.spreadsheet", "application/vnd.presentation",
+                             // "text/csv", "text/plain", "image/png"
   readonly data: unknown
 }
 
@@ -520,7 +523,7 @@ registerRenderer(MarkdownRenderer)
 
 ## Performance notes
 
-- **Lazy loading.** `pdfjs-dist`, `docx-preview` and `xlsx` are dynamic-imported only when their format is first previewed. The demo site's initial bundle never includes them.
+- **Lazy loading.** `pdfjs-dist`, `docx-preview`, `xlsx` and `pptx-viewer` are dynamic-imported only when their format is first previewed. The demo site's initial bundle never includes them.
 - **Virtualization.** Excel sheets and large CSV files render as virtualized tables — only the visible rows are in the DOM; 80 000-row CSV files stay responsive.
 - **Independent containers.** `preview()` is container-scoped; multiple previews on one page don't interfere.
 - **Cancellation.** A generation guard makes stale async work inert: calling `clearPreview()` or a new `preview()` on the same container discards in-flight work from the previous call.
@@ -529,7 +532,7 @@ registerRenderer(MarkdownRenderer)
 
 ## Browser support
 
-Modern evergreen browsers (Chrome, Edge, Firefox, Safari). The package uses `WeakMap`, `Uint8Array`, `AbortController`-free `fetch`, dynamic `import()` and fullscreen/pointer APIs.
+Modern evergreen browsers (Chrome, Edge, Firefox, Safari). The package uses `WeakMap`, `Uint8Array`, `AbortController`-free `fetch`, dynamic `import()`, fullscreen/pointer APIs, and (for PowerPoint) `DOMParser` + SVG with `foreignObject` — all present in evergreen browsers.
 
 ---
 
@@ -561,7 +564,7 @@ src/
   renderers/        # result → DOM + PreviewAdapter (toolbar capabilities)
     registry.ts     # renderer registry (shared factory)
     types.ts        # Renderer contract
-    docview.ts      # shared paged-document stage + PagedDocController (PDF & Word)
+    docview.ts      # shared paged-document stage + PagedDocController (PDF, Word & PowerPoint)
     render-state.ts # per-container render state helper
     interaction/    # image magnification (loupe) and zoom/pan
     virtual-table.ts# shared virtualized grid (Excel & CSV)

@@ -27,8 +27,8 @@ sources layer. Only exported via `src/types.ts`.
 | --- | --- |
 | `types.ts` | The `Previewer` interface (moved here from `src/previewer.ts`). |
 | `registry.ts` | `getPreviewer(mime)`, `registerPreviewer(Class)`, `clearPreviewers()`. Built on the generic `createRegistry` from `src/utils/registry.ts` (keys = `supportedMimeTypes`, predicate = `canPreview`). |
-| `result-types.ts` | Result-type constant + discriminators for `result.data` shapes (`isBlobResultData`, `isWordResultData`, `isSpreadsheetResultData`, `isCsvResultData`). Renderers use these to narrow `data` safely instead of reimplementing per-vendor MIME checks. |
-| `text.ts`, `image.ts`, `csv.ts`, `pdf.ts`, `word.ts`, `excel.ts` | One previewer per format. |
+| `result-types.ts` | Result-type constant + discriminators for `result.data` shapes (`isBlobResultData`, `isWordResultData`, `isSpreadsheetResultData`, `isPresentationResultData`, `isCsvResultData`). Renderers use these to narrow `data` safely instead of reimplementing per-vendor MIME checks. |
+| `text.ts`, `image.ts`, `csv.ts`, `pdf.ts`, `word.ts`, `excel.ts`, `presentation.ts` | One previewer per format. |
 
 ## Result types
 
@@ -40,9 +40,10 @@ sources layer. Only exported via `src/types.ts`.
 | PDF | `application/pdf` (+ legacy aliases) | `application/pdf` | `{ blob }` |
 | Word | msword / vnd.word family | `application/vnd.word` | `{ blob, format }` (`docx\|docm\|dotx\|dotm\|doc\|dot`) |
 | Excel | ms-excel / spreadsheetml | `application/vnd.spreadsheet` | `{ blob, format }` |
+| Presentation | ms-powerpoint / presentationml / vnd.oasis.opendocument.presentation | `application/vnd.presentation` | `{ blob, format }` (`pptx\|pptm\|potx\|potm\|ppsx\|ppsm\|ppt\|pps\|pot\|odp`) |
 
-Word and Excel normalize every vendor MIME into one result type; `format` lets the
-Word renderer choose between a real paginated render and the legacy fallback card.
+Word, Excel and Presentation normalize every vendor MIME into one result type;
+`format` lets the renderer choose between a real render and the legacy fallback card.
 
 ## Rules for contributors
 

@@ -98,7 +98,8 @@ npm install
 npm run dev          # predev rebuilds the package; http://localhost:5173
 ```
 
-Then open PDF, Word (.docx), Excel (.xlsx), CSV, a text file, and an image; also
+Then open PDF, Word (.docx), Excel (.xlsx), a PowerPoint deck (.pptx, try the sample in
+`playground/samples/`), CSV, a text file, and an image; also
 test an unsupported/corrupt file (error card) and the Close-preview button.
 
 ## How to add a new format (née `ARCHITECTURE.md` → Extension checklist)

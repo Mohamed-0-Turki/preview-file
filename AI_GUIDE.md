@@ -114,7 +114,7 @@ These are the exact files to touch — in order:
    Use [`docs/templates/CustomRenderer.ts`](docs/templates/CustomRenderer.ts).
 6. `src/renderers/index.ts` — import + `registerRenderer` it.
 7. `README.md` — add a row to the format table.
-8. Verify (§6). If the format is paged (PDF/Word-like), build on
+8. Verify (§6). If the format is paged (PDF/Word/PowerPoint-like), build on
    `createPagedDocController` in `src/renderers/docview.ts` instead of inventing layout logic.
 
 ### 5.2 Add a toolbar control / capability
@@ -167,9 +167,9 @@ npm run build && cd playground && npm install && npm run dev   # http://localhos
 | --- | --- | --- |
 | register/get/clear registries | `createRegistry` in `src/utils/registry.ts` | `previewers/registry.ts`, `renderers/registry.ts` |
 | per-container attachment + destroy | `createRenderState` in `src/renderers/render-state.ts` | all renderers |
-| paged document layout (scale/fit/single-page/page nav) | `createPagedDocController` in `src/renderers/docview.ts` | `pdf.ts`, `word.ts` |
+| paged document layout (scale/fit/single-page/page nav) | `createPagedDocController` in `src/renderers/docview.ts` | `pdf.ts`, `word.ts`, `presentation.ts` |
 | virtualized grid | `createVirtualTable` in `src/renderers/virtual-table.ts` | `excel.ts`, `csv.ts` |
-| blob/word/spreadsheet/csv guards | `is*ResultData` in `src/previewers/result-types.ts` | previewers + renderers |
+| blob/word/spreadsheet/presentation/csv guards | `is*ResultData` in `src/previewers/result-types.ts` | previewers + renderers |
 | loupe + zoom/pan | `src/renderers/interaction/` | `image.ts` |
 | extension parsing | `extensionFrom` in `src/utils/extension.ts` | `detect.ts`, word/excel previewers |
 | CSV parsing | `parseCsv` in `src/utils/csv.ts` | `csv.ts` previewer + renderer |

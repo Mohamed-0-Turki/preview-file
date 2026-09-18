@@ -2,6 +2,7 @@ import type { PreviewAdapter } from '../controls/types.js'
 import type { PreviewOptions, PreviewResult } from '../types.js'
 import { isRenderableWordFormat, isWordResultData } from '../previewers/result-types.js'
 import { createRenderState } from './render-state.js'
+import { renderLegacyFallback } from './legacy-fallback.js'
 import type { Renderer } from './types.js'
 import {
   computePageMetrics,
@@ -39,7 +40,10 @@ export class WordRenderer implements Renderer {
     }
 
     if (!isRenderableWordFormat(result.data.format)) {
-      return this.renderLegacyFallback(container, result.data.format)
+      return renderLegacyFallback(
+        container,
+        `This document uses the legacy .${result.data.format} format, which cannot be rendered in the browser. Use the Download button to open it in an installed application.`
+      )
     }
 
     let docxPreview: typeof import('docx-preview')
@@ -111,40 +115,6 @@ export class WordRenderer implements Renderer {
     })
 
     return controller.adapter
-  }
-
-  private renderLegacyFallback(container: HTMLElement, format: string): PreviewAdapter {
-    const fallback = document.createElement('div')
-    fallback.style.position = 'absolute'
-    fallback.style.inset = '0'
-    fallback.style.display = 'flex'
-    fallback.style.flexDirection = 'column'
-    fallback.style.alignItems = 'center'
-    fallback.style.justifyContent = 'center'
-    fallback.style.gap = '8px'
-    fallback.style.padding = '16px'
-    fallback.style.boxSizing = 'border-box'
-    fallback.style.fontFamily = 'system-ui, sans-serif'
-    fallback.style.fontSize = '13px'
-    fallback.style.color = '#57606a'
-    fallback.style.textAlign = 'center'
-
-    const title = document.createElement('div')
-    title.textContent = 'Preview unavailable'
-    title.style.fontWeight = '600'
-    title.style.color = '#24292f'
-    fallback.appendChild(title)
-
-    const detail = document.createElement('div')
-    detail.textContent = `This document uses the legacy .${format} format, which cannot be rendered in the browser. Use the Download button to open it in an installed application.`
-    fallback.appendChild(detail)
-
-    container.appendChild(fallback)
-
-    return {
-      canDownload: true,
-      canFullscreen: false,
-    }
   }
 
   destroy(container: HTMLElement): void {

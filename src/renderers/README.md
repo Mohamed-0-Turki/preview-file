@@ -21,8 +21,8 @@ interface Renderer {
 ```
 
 Heavy engines are dynamic-imported **only inside `render()`**: `pdfjs-dist` (PDF),
-`docx-preview` (Word), `xlsx` (Excel). A consumer that never opens a PDF never pays
-for pdf.js.
+`docx-preview` (Word), `xlsx` (Excel), `pptx-viewer` (PowerPoint). A consumer that
+never opens a PDF never pays for pdf.js.
 
 ## Modules
 
@@ -30,11 +30,12 @@ for pdf.js.
 | --- | --- |
 | `types.ts` | The `Renderer` interface. |
 | `registry.ts` | `getRenderer(type)`, `registerRenderer(Class)`, `clearRenderers()`. Built on the generic `createRegistry` from `src/utils/registry.ts`. |
-| `docview.ts` | Shared paged-document infrastructure for PDF and Word: `createDocStage()` (DOM) and `createPagedDocController(host)` (all layout state — scale, fit mode, single-page, current page — plus `PagedDocViewState` callbacks so renderers draw only visible pages). **Do not duplicate paged-doc logic in a new renderer; build on this.** |
+| `docview.ts` | Shared paged-document infrastructure for PDF, Word and PowerPoint: `createDocStage()` (DOM) and `createPagedDocController(host)` (all layout state — scale, fit mode, single-page, current page — plus `PagedDocViewState` callbacks so renderers draw only visible pages). Hosts pick the initial fit via `initialFit` (pages for slide decks). **Do not duplicate paged-doc logic in a new renderer; build on this.** |
 | `render-state.ts` | `createRenderState<T>()` → per-container state with `set(container, attachment)` / `destroyFor(container)`. Every renderer uses it instead of hand-rolled `WeakMap` boilerplate. |
+| `legacy-fallback.ts` | Shared "Preview unavailable" card + adapter for formats that cannot be rendered in-browser (used by Word and PowerPoint); callers supply the message. |
 | `interaction/` | Barrel over `magnifier.ts` (vector-image loupe) and `zoomable.ts` (canvas zoom/pan), sharing `clamp` from `src/utils/`. |
 | `virtual-table.ts` | Shared virtualized grid used by Excel and CSV (only visible rows materialized). |
-| `text.ts`, `image.ts`, `csv.ts`, `pdf.ts`, `word.ts`, `excel.ts` | One renderer per result type. |
+| `text.ts`, `image.ts`, `csv.ts`, `pdf.ts`, `word.ts`, `excel.ts`, `presentation.ts` | One renderer per result type. |
 
 ## Rules for contributors
 

@@ -153,6 +153,8 @@ export interface PagedDocHost {
   readonly maxScale: number
   readonly zoomStep: number
   readonly metrics: PageMetrics
+  /** Initial fit mode applied on creation (defaults to `width`). */
+  readonly initialFit?: 'width' | 'page'
   /** Called once per scroll animation frame (PDFs re-render visible pages). */
   onScrollFrame?(state: PagedDocViewState): void
   /** Called after every layout pass (PDFs re-render visible pages). */
@@ -257,8 +259,8 @@ export function createPagedDocController(host: PagedDocHost): PagedDocController
   }
 
   const applyFit = (mode: 'width' | 'page'): void => {
-    if (stage.viewport.clientWidth <= 0) return
     fitMode = mode
+    if (stage.viewport.clientWidth <= 0) return
     const metrics = host.metrics
     const width = availableWidth()
     const height = availableHeight()
@@ -355,8 +357,10 @@ export function createPagedDocController(host: PagedDocHost): PagedDocController
     },
   }
 
-  /* Documents always start fit-to-width, mirroring the historical default. */
-  applyFit('width')
+  /* Documents start fitted to the host's requested initial mode (width for
+     A4-style formats, page for slide decks where the whole slide must be
+     visible). */
+  applyFit(host.initialFit ?? 'width')
 
   return {
     get scale() {
