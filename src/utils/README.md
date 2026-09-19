@@ -13,6 +13,7 @@ it is the dependency bottom of the package. New shared logic belongs here.
 | `monaco-capabilities.ts` | `canMonacoPreview(name, mimeType)`, `resolveMonacoLanguageId(name, mimeType)` | Ask "does Monaco know this file?" from the generated routing index before Monaco is loaded — exact filename, extension, declared MIME, or synthetic `text/x-{id}`. This is what makes the code previewer capability-aware instead of MIME-list-aware. |
 | `monaco-languages.ts` | `EXTENSION_TO_LANGUAGE`, `FILENAME_TO_LANGUAGE`, `LANGUAGE_TO_MIMETYPE`, `MONACO_MIME_TYPES` | Auto-generated routing index built from Monaco's own language registry (see `scripts/generate-monaco-languages.mjs`). Do not edit by hand. |
 | `csv.ts` | `parseCsv(text)` | CSV text → rows (`string[][]`). Moved here so both the CSV renderer and CSV previewer can use it (parse cost is shared and matched). |
+| `download.ts` | `downloadBlob(name, blob)` | Create a via-anchor download for a `Blob`. Moved here (from `controls/`) so renderers can trigger downloads legally — renderers may not import the preview/controls pipeline.
 | `math.ts` | `clamp(value, min, max)` | Clamp helper shared by the magnifier and zoomable image logic. |
 
 ## Rules for contributors

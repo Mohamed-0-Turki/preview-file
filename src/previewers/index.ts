@@ -1,5 +1,6 @@
 import { registerPreviewer } from './registry.js'
 
+import { ArchivePreviewer } from './archive.js'
 import { CodePreviewer } from './code.js'
 import { CsvPreviewer } from './csv.js'
 import { ExcelPreviewer } from './excel.js'
@@ -19,7 +20,9 @@ registerPreviewer(PdfPreviewer)
 registerPreviewer(WordPreviewer)
 registerPreviewer(ExcelPreviewer)
 registerPreviewer(PresentationPreviewer)
+registerPreviewer(ArchivePreviewer)
 
+export { ArchivePreviewer } from './archive.js'
 export { CodePreviewer } from './code.js'
 export { CsvPreviewer } from './csv.js'
 export { ExcelPreviewer } from './excel.js'

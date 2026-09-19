@@ -27,14 +27,20 @@ This document describes how `preview-file` is organized and how the preview pipe
  getRenderer(type)       src/renderers/registry.ts  → Renderer (or error card)
         │
         ▼
- renderer.render()       src/renderers/*.ts         → DOM + PreviewAdapter (optional)
+renderer.render()       src/renderers/*.ts         → DOM + PreviewAdapter (optional)
         │
         ▼
- mountControls()         src/controls/toolbar.ts    → glass toolbar UI
+  mountControls()         src/controls/toolbar.ts    → glass toolbar UI
         │
         ▼
- activePreviews.set()    src/preview.ts             → teardown is registered
+  activePreviews.set()    src/preview.ts             → teardown is registered
 ```
+
+`preview.ts` calls `renderer.render(container, result, options, context)`, passing a
+`RenderContext { previewSource, clearPreview }` so a renderer can recursively preview a
+secondary source. This keeps the dependency direction strict — pipeline stages may
+never import `preview.ts`. The Archive renderer uses it to open files *inside* an
+archive with the full normal pipeline.
 
 ## Module map
 
@@ -52,7 +58,15 @@ src/
     csv.ts             parseCsv (moved here so both renderers and previewers reuse it)
     math.ts            clamp()
     registry.ts        createRegistry<T>() — generic register/get/clear factory
+    download.ts        downloadBlob() (moved here so renderers may trigger downloads)
     index.ts           Barrel export
+  archives/            Archive reading layer (ZIP/TAR/GZ) behind one provider interface
+    types.ts           ArchiveFormat, ArchiveEntry, ArchiveProvider, ArchivePasswordError
+    zip.ts             ZipProvider (list/read) built on @zip.js/zip.js, password support
+    tar.ts             Hand-rolled TAR parser (ustar/PAX/GNU) — no dependency
+    tar-provider.ts    TarProvider over parsed TAR entries
+    gz.ts              GzProvider — gunzip then sniff TAR vs. single file (fflate)
+    index.ts           resolveArchiveFormat(), createArchiveProvider(), labels
   previewers/          One Previewer per format; maps a FileInput to a typed result
     index.ts           Registers all built-in previewers (side effect of import)
     registry.ts        Previewer registry (built on utils/registry's createRegistry)
@@ -61,11 +75,12 @@ src/
   renderers/           One Renderer per result type; produces DOM + PreviewAdapter
     index.ts           Registers all built-in renderers (side effect of import)
     registry.ts        Renderer registry (built on utils/registry's createRegistry)
-    types.ts           Renderer interface
+    types.ts           Renderer interface + RenderContext (nested-preview bridge)
     render-state.ts    createRenderState() — per-container render state helper
     legacy-fallback.ts Shared "Preview unavailable" card (Word + Presentation fallbacks)
     docview.ts         Shared "paged document" stage + PagedDocController (PDF + Word + PowerPoint)
     virtual-table.ts   Shared virtualized table (Excel + CSV share it)
+    archive.ts         Archive file-browser renderer (ZIP/TAR/GZ)
     interaction/       Shared pointer/wheel interaction helpers (magnifier, zoomable)
   controls/            Toolbar, download helper, capability types
     toolbar.ts         mountControls(): sticky navbar toolbar + overflow menu
@@ -190,6 +205,30 @@ Because the toolbar is *derived* from the adapter, adding a new control is: (1) 
 
 `activePreviews` (a `WeakMap<HTMLElement, cleanup>`) records a per-container cleanup: unmount controls + `renderer.destroy(container)`. `clearPreview()` invokes it, bumps the generation, and empties the container. Containers never leak: after `clearPreview()` the `WeakMap` entry is dropped.
 
+## Archive reading & nested preview
+
+Archives are read behind one interface in `src/archives/`:
+`ArchiveProvider { list(); read(path); unlock(password); isLocked(); encrypted; dispose() }`.
+`createArchiveProvider(bytes, format, name)` picks the implementation — `ZipProvider`
+(@zip.js/zip.js), `TarProvider` (hand-rolled `tar.ts`, no tar dependency exists in
+fflate), or `GzProvider` (fflate `gunzipSync`, then TAR-sniff vs. single file). Formats
+are resolved by `resolveArchiveFormat(name ?? mime?)` before a provider is built, so
+`.tar.gz` → `tgz` regardless of the OS reporting `application/gzip`.
+
+- **Encryption.** A locked ZIP still lists; reading an encrypted entry throws
+  `ArchivePasswordError`. `unlock(password)` validates by reading the first encrypted
+  entry (AES first, then ZipCrypto) and caches the password on the provider instance —
+  it is dropped on `dispose()`, never stored globally.
+- **The Archive renderer** (`src/renderers/archive.ts`) is a self-contained file browser
+  (breadcrumbs, back/forward/root, name search, virtualized rows, per-file download,
+  unlock bar). It recursively previews an inner file via the `RenderContext` that
+  `preview.ts` injects into `render()`, so a `.pdf`/`.md`/`.cs`/`.png` in an archive
+  opens with that format's normal toolbar inside the archive's own preview host. A
+  session counter + rAF-paint guard means a slow inner `previewSource()` resolving after
+  the user navigated away is silently dropped, and `destroy()`/`clearPreview` tear down
+  the nested preview. Since the pipeline is depth-agnostic, archives-of-archives recurse
+  naturally through the same bridge.
+
 ## Rendering philosophy
 
 - **The library never owns the layout.** It renders at 100 % of whatever element the caller provides (auto-set to `position: relative` if static). No modals, no full-page takeover, no injected page chrome — the toolbar lives *inside* the box as a sticky navbar with the renderer's content in a stage below it.
@@ -215,12 +254,13 @@ Limitations to be aware of:
 
 1. **Previewer** — implement `Previewer` (name, `supportedMimeTypes`, `canPreview`, `preview`) and call `registerPreviewer(Class)`.
 2. **Result type** — return a stable `result.type` and a self-describing `data` (add a discriminator in `src/previewers/result-types.ts` if you want helpers).
-3. **Renderer** — implement `Renderer` (`canRender`, `render` → `PreviewAdapter | void`) and call `registerRenderer(Class)`.
+3. **Renderer** — implement `Renderer` (`canRender`, `render` → `PreviewAdapter | void`, `destroy`) and call `registerRenderer(Class)`.
 4. **Controls** — return the relevant `PreviewAdapter` capabilities from `render`; the toolbar picks them up automatically.
+5. **Nested sources** — if the renderer previews another source (archives), consume the optional `RenderContext` argument instead of importing `preview.ts`, and tear the nested preview down in `destroy()`.
 
 ## Verification
 
 - `npm run typecheck` — TSC no-emit (`strict`, `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`; every internal import uses explicit `.js` specifiers and `import type` for type-only imports).
 - `npm run lint` — oxlint (default correctness rules + TS/oxc plugins; configured in `.oxlintrc.json`).
 - `npm run build` — emits `dist/`.
-- `npm test` is not scripted; the interactive demo ([`playground/`](playground), a React + Vite app consuming the built package via `file:..`) and the manual matrix (PDF/DOCX/XLSX/CSV/images, file/URL/blob sources) are the current smoke layer.
+- `npm test` is not scripted; the interactive demo ([`playground/`](playground), a React + Vite app consuming the built package via `file:..`) and the manual matrix (PDF/DOCX/XLSX/CSV/images/archives, file/URL/blob sources) are the current smoke layer.

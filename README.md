@@ -1,6 +1,6 @@
 # preview-file
 
-A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, PowerPoint, Excel, CSV, source code, text and image files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, native slide rendering for PowerPoint, spreadsheet-style data views for Excel/CSV, Monaco-powered syntax highlighting for source code, and a sticky top toolbar that behaves like a navbar and only shows the controls the active preview supports.
+A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, PowerPoint, Excel, CSV, source code, text, image and archive (ZIP/TAR/TAR.GZ/GZ) files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, native slide rendering for PowerPoint, spreadsheet-style data views for Excel/CSV, Monaco-powered syntax highlighting for source code, an in-place archive file browser that previews the files inside it, and a sticky top toolbar that behaves like a navbar and only shows the controls the active preview supports.
 
 - **No framework required.** Vanilla JS is a first-class citizen; React, Vue, Svelte and Angular use the exact same `preview()` call.
 - **Capability-driven controls.** Each previewer declares what it can do and the toolbar renders exactly that (zoom, pages, sheets, search, rotate, thumbnails, lens, download, fullscreen).
@@ -24,8 +24,9 @@ A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, 
 | Code | `.js`, `.tsx`, `.py`, `.json`, `.hbs`, `.ps1`, `.cshtml`, `.tf`, … any file with an extension or name Monaco recognizes — all **91** Monaco languages, plus filenames like `Dockerfile`, `Gemfile`, `tsconfig.json` | Read-only Monaco editor: syntax highlighting, folding, line numbers, zoom, copy, word-wrap | Monaco (CDN, lazy) |
 | Markdown | `.md`, `.markdown`, `.mkd`, `.mdwn`, … | GitHub-style rendered document (tables, task lists, highlighted fenced code) with a **Preview ⇄ Code** toggle | Built-in (`marked`, lazy) |
 | Images | `.jpg`, `.png`, `.gif`, `.webp`, `.svg`, `.avif`, `.bmp`, `.apng` | Zoom/fit, inspection loupe, rotate | Built-in |
+| Archive | `.zip`, `.tar`, `.tgz`, `.tar.gz`, `.gz` | File-browser view: folders, breadcrumbs, back/forward/root, search, per-file download, password unlock; opening a file previews it with the normal pipeline | Built-in (`@zip.js/zip.js`, `fflate`) |
 
-Unsupported or oversized files render a retriable error card (with a Download button) inside the container instead of breaking your layout.
+Unsupported or oversized files render a retriable error card (with a Download button) inside the container instead of breaking your layout. Unsupported archive formats (`.rar`, `.7z`, `.bz2`, `.xz`) fall back to that error card.
 
 ---
 
@@ -282,6 +283,33 @@ toggles (visibility is toggled, not destroyed), so switching back and forth is i
 Monaco can't load, the Code view falls back to a scrollable plain-text view rather than
 breaking. Rendering (including the (~300 KB) `marked` runtime) happens only when a
 Markdown file is previewed.
+
+---
+
+## Archive preview
+
+ZIP, TAR, TAR.GZ / TGZ and bare `.gz` files open as an in-place file browser
+(`.gz` contents are transparently decompressed; if the decompressed bytes are
+themselves a TAR, it is browsed as one, otherwise the single file is offered for
+preview/download). The archive's own navigation UI renders inside the preview stage,
+while the outer toolbar keeps its **File → Download** action for saving the *original* archive.
+
+- **Folders & files** — the archive is listed like a file manager: directories first,
+  virtualized rows for large archives, size column, per-file Download button, and a root
+  button that returns to the top of the archive at any depth.
+- **Breadcrumbs** — every level of the current path is clickable; a **back / forward**
+  history works across folders *and* individual files.
+- **Search** — filters the current folder by name.
+- **Preview inside** — clicking a file pipes its bytes through the normal `preview()`
+  pipeline, so a `.pdf`, `.md`, `.cs`, `.png` … in an archive opens with that file's full
+  toolbar (zoom, pages, download of that inner file), and back/forward/navigating away
+  tears the inner preview down automatically. Symbolic and hard links show a note with
+  their target instead of recursing.
+- **Password-protected archives** — encrypted ZIP entries decrypt transparently once the
+  password is entered in the unlock bar (ZIP AES is tried first, then ZipCrypto);
+  correctness is validated by reading the first encrypted file, wrong passwords are
+  rejected in place, and unencrypted files inside a locked archive remain browsable.
+  Passwords only live on the provider instance and are dropped when the preview closes.
 
 ---
 

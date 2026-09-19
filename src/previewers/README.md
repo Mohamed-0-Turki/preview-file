@@ -27,8 +27,8 @@ sources layer. Only exported via `src/types.ts`.
 | --- | --- |
 | `types.ts` | The `Previewer` interface (moved here from `src/previewer.ts`). |
 | `registry.ts` | `getPreviewer(mime, name?)`, `registerPreviewer(Class)`, `clearPreviewers()`. Built on the generic `createRegistry` from `src/utils/registry.ts` (keys = `supportedMimeTypes`, predicate = `canPreview`). The optional file name is passed to every fallback predicate so capability-aware previewers (Code/Monaco) can resolve the file against Monaco's own language metadata. |
-| `result-types.ts` | Result-type constant + discriminators for `result.data` shapes (`isBlobResultData`, `isWordResultData`, `isSpreadsheetResultData`, `isPresentationResultData`, `isCsvResultData`, `isCodeResultData`, `isMarkdownResultData`). Renderers use these to narrow `data` safely instead of reimplementing per-vendor MIME checks. |
-| `text.ts`, `image.ts`, `csv.ts`, `pdf.ts`, `word.ts`, `excel.ts`, `presentation.ts`, `code.ts`, `markdown.ts` | One previewer per format. |
+| `result-types.ts` | Result-type constant + discriminators for `result.data` shapes (`isBlobResultData`, `isWordResultData`, `isSpreadsheetResultData`, `isPresentationResultData`, `isCsvResultData`, `isCodeResultData`, `isMarkdownResultData`, `isArchiveResultData`). Renderers use these to narrow `data` safely instead of reimplementing per-vendor MIME checks. |
+| `text.ts`, `image.ts`, `csv.ts`, `pdf.ts`, `word.ts`, `excel.ts`, `presentation.ts`, `code.ts`, `markdown.ts`, `archive.ts` | One previewer per format. |
 
 ## Result types
 
@@ -43,9 +43,13 @@ sources layer. Only exported via `src/types.ts`.
 | Word | msword / vnd.word family | `application/vnd.word` | `{ blob, format }` (`docx\|docm\|dotx\|dotm\|doc\|dot`) |
 | Excel | ms-excel / spreadsheetml | `application/vnd.spreadsheet` | `{ blob, format }` |
 | Presentation | ms-powerpoint / presentationml / vnd.oasis.opendocument.presentation | `application/vnd.presentation` | `{ blob, format }` (`pptx\|pptm\|potx\|potm\|ppsx\|ppsm\|ppt\|pps\|pot\|odp`) |
+| Archive | zip / tar / gzip / x-gzip / x-tar / x-gtar / x-compressed-tar | `application/x-archive` | `{ bytes, name, format }` (`zip\|tar\|tgz\|gz`; `tgz` covers `.tar.gz`) |
 
 Word, Excel and Presentation normalize every vendor MIME into one result type;
 `format` lets the renderer choose between a real render and the legacy fallback card.
+The Archive previewer keeps the raw bytes and the resolved `format` in its result;
+the actual format detection is delegated to `resolveArchiveFormat` (`src/archives/`),
+which keys on the file name (`sample.tar.gz`, `x.tgz`) and then on MIME.
 
 > **Registration order matters for Code vs Text.** `CodePreviewer` and
 > `MarkdownPreviewer` are registered before `TextPreviewer` in `index.ts`.

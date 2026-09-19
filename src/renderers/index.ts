@@ -1,5 +1,6 @@
 import { registerRenderer } from './registry.js'
 
+import { ArchiveRenderer } from './archive.js'
 import { CodeRenderer } from './code.js'
 import { CsvRenderer } from './csv.js'
 import { ExcelRenderer } from './excel.js'
@@ -10,6 +11,7 @@ import { PresentationRenderer } from './presentation.js'
 import { TextRenderer } from './text.js'
 import { WordRenderer } from './word.js'
 
+registerRenderer(ArchiveRenderer)
 registerRenderer(CodeRenderer)
 registerRenderer(MarkdownRenderer)
 registerRenderer(TextRenderer)
@@ -20,6 +22,7 @@ registerRenderer(WordRenderer)
 registerRenderer(ExcelRenderer)
 registerRenderer(PresentationRenderer)
 
+export { ArchiveRenderer } from './archive.js'
 export { CodeRenderer } from './code.js'
 export { CsvRenderer } from './csv.js'
 export { ExcelRenderer } from './excel.js'
@@ -30,4 +33,4 @@ export { PresentationRenderer } from './presentation.js'
 export { TextRenderer } from './text.js'
 export { WordRenderer } from './word.js'
 export { getRenderer, registerRenderer, clearRenderers } from './registry.js'
-export type { Renderer } from './types.js'
+export type { RenderContext, Renderer } from './types.js'

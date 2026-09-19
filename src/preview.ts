@@ -288,7 +288,10 @@ export async function preview(
 
   let adapter: PreviewAdapter | undefined
   try {
-    const rendered = await renderer.render(stage, result, options)
+    const rendered = await renderer.render(stage, result, options, {
+      previewSource: (source, innerContainer, innerOptions) => preview(source, innerContainer, innerOptions),
+      clearPreview,
+    })
     adapter = rendered ?? undefined
   } catch (error) {
     const message = `Failed to render preview for "${resolved.name}": ${(error as Error).message}`

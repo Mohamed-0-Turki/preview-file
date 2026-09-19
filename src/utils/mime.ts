@@ -110,6 +110,10 @@ const EXTENSION_TO_MIME: Readonly<Record<string, string>> = {
   avif: 'image/avif',
   bmp: 'image/bmp',
   apng: 'image/apng',
+  zip: 'application/zip',
+  tar: 'application/x-tar',
+  gz: 'application/gzip',
+  tgz: 'application/x-tar',
 }
 
 export function mimeFromExtension(extension: string): string | undefined {

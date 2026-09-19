@@ -51,6 +51,15 @@ export interface PresentationResultData {
   readonly format: PresentationFormat
 }
 
+export interface ArchiveResultData {
+  /** Raw archive bytes. The archive renderer hands them to a provider that
+   *  reads members on demand. */
+  readonly bytes: Uint8Array<ArrayBuffer>
+  /** Original file name — resolves the container format and labels rows. */
+  readonly name: string
+  readonly format: string
+}
+
 export function isBlobResultData(data: unknown): data is BlobResultData {
   return (
     typeof data === 'object' &&
@@ -131,5 +140,18 @@ export function isRenderablePresentationFormat(format: string): boolean {
     format === 'potm' ||
     format === 'ppsx' ||
     format === 'ppsm'
+  )
+}
+
+export function isArchiveResultData(data: unknown): data is ArchiveResultData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'bytes' in data &&
+    (data as { bytes?: unknown }).bytes instanceof Uint8Array &&
+    'name' in data &&
+    typeof (data as { name?: unknown }).name === 'string' &&
+    'format' in data &&
+    typeof (data as { format?: unknown }).format === 'string'
   )
 }

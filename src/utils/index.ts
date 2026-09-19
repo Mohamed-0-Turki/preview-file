@@ -1,5 +1,6 @@
 export { parseCsv } from './csv.js'
 export { detectType } from './detect.js'
+export { downloadBlob } from './download.js'
 export { extensionFrom } from './extension.js'
 export { clamp } from './math.js'
 export { mimeFromExtension, isCodeMime, CODE_MIME_TYPES } from './mime.js'

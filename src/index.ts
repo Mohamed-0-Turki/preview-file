@@ -8,7 +8,7 @@ export { getRenderer, registerRenderer, clearRenderers } from './renderers/index
 export { detectType, parseCsv } from './utils/index.js'
 export type { Previewer, PreviewerConstructor } from './previewers/index.js'
 export type { FileInput, MagnifierOptions, MonacoOptions, PreviewOptions, PreviewResult } from './types.js'
-export type { Renderer } from './renderers/index.js'
+export type { RenderContext, Renderer } from './renderers/index.js'
 export type {
   FitControls,
   FullscreenControls,
