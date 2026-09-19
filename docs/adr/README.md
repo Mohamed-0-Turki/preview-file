@@ -20,6 +20,7 @@ decision changes, write a new ADR that supersedes it.
 | [ADR-0010](0010-testing-strategy.md) | Testing: manual playground smoke today, documented path to Vitest + Playwright |
 | [ADR-0011](0011-framework-agnostic-package.md) | Framework-agnostic single package; no monorepo, no framework-specific entry points |
 | [ADR-0012](0012-presentation-preview.md) | Presentation preview: external DOM/SVG renderer (`pptx-viewer`) on the paged-document controller; legacy formats fall back |
+| [ADR-0013](0013-monaco-code-preview.md) | Source-code preview: Monaco Editor loaded lazily from a pinned AMD CDN build (configurable base URL), never bundled |
 
 ## Status values
 

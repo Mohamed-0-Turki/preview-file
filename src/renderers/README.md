@@ -20,9 +20,13 @@ interface Renderer {
 }
 ```
 
-Heavy engines are dynamic-imported **only inside `render()`**: `pdfjs-dist` (PDF),
-`docx-preview` (Word), `xlsx` (Excel), `pptx-viewer` (PowerPoint). A consumer that
-never opens a PDF never pays for pdf.js.
+Heavy engines are loaded **only inside `render()`**: `pdfjs-dist` is dynamic-imported
+(PDF), `docx-preview` (Word), `xlsx` (Excel), `pptx-viewer` (PowerPoint); Monaco Editor
+(Code) is loaded lazily through its AMD build — `monaco-loader.ts` injects
+`vs/loader.js` as a classic script, calls `require.config({ baseUrl, paths: { vs } })`
+(which makes the workers and CSS resolve cross-origin), then `require(['vs/editor/editor.main'])`.
+A consumer that never opens a PDF never pays for pdf.js; one that never previews code
+never fetches Monaco.
 
 ## Modules
 
@@ -35,7 +39,17 @@ never opens a PDF never pays for pdf.js.
 | `legacy-fallback.ts` | Shared "Preview unavailable" card + adapter for formats that cannot be rendered in-browser (used by Word and PowerPoint); callers supply the message. |
 | `interaction/` | Barrel over `magnifier.ts` (vector-image loupe) and `zoomable.ts` (canvas zoom/pan), sharing `clamp` from `src/utils/`. |
 | `virtual-table.ts` | Shared virtualized grid used by Excel and CSV (only visible rows materialized). |
-| `text.ts`, `image.ts`, `csv.ts`, `pdf.ts`, `word.ts`, `excel.ts`, `presentation.ts` | One renderer per result type. |
+| `monaco-loader.ts` | Lazy AMD loader for Monaco: `loadMonaco(options)` (cached; resets on failure) injects `vs/loader.js`, configures `require`, resolves when `editor.main` is ready. Honors `options.monaco.baseUrl` and `setMonacoBaseUrl` via `resolveMonacoBaseUrl` (`src/monaco.ts`). |
+| `monaco-language.ts` | Maps a source file to a Monaco language id without a maintained list: queries `monaco.languages.getLanguages()` — exact filename, then extension, then declared MIME, then a `#!` shebang on the first line — defaulting to `plaintext`. |
+| `monaco-types.ts` | Self-contained typing shim for the tiny Monaco surface this package consumes. `monaco-editor` is a devDependency for parity checks only and is never statically imported (see ADR-0013). |
+| `text.ts`, `image.ts`, `csv.ts`, `pdf.ts`, `word.ts`, `excel.ts`, `presentation.ts`, `code.ts` | One renderer per result type. |
+
+The Code renderer is registered **before** Text in `index.ts` (its key is the exact
+`text/code` type, so order is defensive — Code's `canRender` is an equality check,
+unlike the previewer side where order genuinely matters). It creates a read-only,
+`automaticLayout` Monaco editor inside an absolutely-positioned host, maps zoom to
+`fontSize`, reuses the `TextControls` capability for copy + word wrap, and disposes
+the editor instance in `destroy()`.
 
 ## Rules for contributors
 

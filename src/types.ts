@@ -9,6 +9,13 @@ export interface MagnifierOptions {
   readonly borderWidth?: number
 }
 
+export interface MonacoOptions {
+  /** Base URL of the Monaco Editor AMD build (`min/` directory). Overrides the
+   *  global setting from {@link setMonacoBaseUrl} and the built-in CDN default
+   *  for a single preview call. */
+  readonly baseUrl?: string
+}
+
 export interface PreviewOptions {
   readonly maxBytes?: number
   readonly magnifier?: MagnifierOptions
@@ -16,6 +23,10 @@ export interface PreviewOptions {
    *  setting from {@link setPdfWorkerSrc} and the built-in CDN default for a
    *  single preview call. */
   readonly workerSrc?: string
+  /** Monaco Editor AMD base URL for source-code previews. Overrides the global
+   *  setting from {@link setMonacoBaseUrl} and the built-in CDN default for a
+   *  single preview call. */
+  readonly monaco?: MonacoOptions
 }
 
 export interface FileInput {

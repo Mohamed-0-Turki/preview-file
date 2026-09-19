@@ -78,6 +78,14 @@ export interface FullscreenControls {
   request(): void | Promise<void>
 }
 
+/** Switch a renderer between alternative views of the same content (e.g. a
+ *  Markdown document's rendered "Preview" and its raw-Monaco "Code" views).
+ *  The renderer keeps `mode` in sync as the user toggles. */
+export interface ViewModeControls {
+  readonly mode: 'preview' | 'code'
+  setMode(mode: 'preview' | 'code'): void
+}
+
 /**
  * The contract a renderer returns to describe the controls it supports.
  * Every group is optional; the previewer declares only the capabilities it
@@ -103,6 +111,7 @@ export interface PreviewAdapter {
   readonly text?: TextControls
   readonly singlePage?: SinglePageMode
   readonly thumbnails?: ThumbnailControls
+  readonly viewMode?: ViewModeControls
   readonly fullscreen?: FullscreenControls
 }
 
@@ -126,4 +135,5 @@ export interface PreviewActions {
   readonly text?: TextControls
   readonly singlePage?: SinglePageMode
   readonly thumbnails?: ThumbnailControls
+  readonly viewMode?: ViewModeControls
 }

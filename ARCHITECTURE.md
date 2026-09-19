@@ -91,7 +91,7 @@ src/
 
 ### 3. Type detection — `src/utils/detect.ts`
 
-`detectType(name, declaredType)` trusts a declared non-`application/octet-stream` type, otherwise falls back to `mimeFromExtension()`. The registry then resolves a previewer by exact MIME match, then by `canPreview()` predicate.
+`detectType(name, declaredType)` trusts a declared non-`application/octet-stream` type, otherwise falls back to `mimeFromExtension()`. The registry then resolves a previewer by exact MIME match, then by `canPreview()` predicate — with the file name passed along so the Code (Monaco) previewer's fallback predicate answers "does Monaco recognize this file?" from Monaco's own language index (see `src/utils/monaco-capabilities.ts`) rather than a hand-maintained MIME list. Exact MIME keys always outrank the fallback, keeping PDF/Word/Excel/Presentation/image/Markdown/CSV/text ownership intact.
 
 ### 4. Previewers — `src/previewers/*.ts`
 
@@ -99,6 +99,7 @@ Previewers are *cheap and pure*: they repackage the bytes into a normalized `Pre
 
 | Previewer | Source MIME(s) | Result type | Result data |
 | --- | --- | --- | --- |
+| Code | any file Monaco's own language metadata recognizes (name, extension, or declared MIME) — capability-aware, excluding what specialized previewers own | `text/code` | `{ text, name, mimeType }` |
 | Text | `text/plain` | `text/plain` | `{ text }` |
 | Image | `image/*` | same as input | `{ blob }` |
 | CSV | `text/csv` | `text/csv` | `{ text }` |

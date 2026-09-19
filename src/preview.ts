@@ -185,6 +185,7 @@ function buildActions(
     text: adapter?.text,
     singlePage: adapter?.singlePage,
     thumbnails: adapter?.thumbnails,
+    viewMode: adapter?.viewMode,
   }
 }
 
@@ -235,7 +236,10 @@ export async function preview(
 
   const mimeType = detectType(resolved.name, resolved.blob.type)
 
-  const previewer = getPreviewer(mimeType)
+  /* The name is passed along so Monaco's capability check (the code previewer)
+     can resolve the file against Monaco's own language metadata — extension,
+     file name or declared MIME — instead of a fixed MIME list. */
+  const previewer = getPreviewer(mimeType, resolved.name)
   if (!previewer) {
     const message = `No previewer registered for MIME type "${mimeType}"`
     showError(container, message, { retry, downloadName: resolved.name, downloadBlob: resolved.blob })

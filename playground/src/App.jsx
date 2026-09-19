@@ -71,7 +71,7 @@ export default function App() {
           <input
             type="file"
             onChange={handleFileChange}
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.pptm,image/*"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.pptm,image/*,.js,.jsx,.mjs,.cjs,.ts,.tsx,.mts,.cts,.json,.html,.css,.scss,.less,.md,.mdx,.py,.java,.c,.cpp,.hpp,.go,.rs,.rb,.php,.sql,.sh,.bash,.yaml,.yml,.xml,.toml,.kt,.swift,.cs,.dart,.lua,.r,.lua,Dockerfile,.gitignore"
           />
         </label>
         <button type="button" onClick={handlePreview} disabled={!file || status === 'loading'}>

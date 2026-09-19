@@ -1,10 +1,10 @@
 # preview-file
 
-A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, PowerPoint, Excel, CSV, text and image files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, native slide rendering for PowerPoint, spreadsheet-style data views for Excel/CSV, and a sticky top toolbar that behaves like a navbar and only shows the controls the active preview supports.
+A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, PowerPoint, Excel, CSV, source code, text and image files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, native slide rendering for PowerPoint, spreadsheet-style data views for Excel/CSV, Monaco-powered syntax highlighting for source code, and a sticky top toolbar that behaves like a navbar and only shows the controls the active preview supports.
 
 - **No framework required.** Vanilla JS is a first-class citizen; React, Vue, Svelte and Angular use the exact same `preview()` call.
 - **Capability-driven controls.** Each previewer declares what it can do and the toolbar renders exactly that (zoom, pages, sheets, search, rotate, thumbnails, lens, download, fullscreen).
-- **Lazy by default.** Heavy engines (pdf.js, docx-preview, SheetJS) are loaded on demand, only when their format is actually previewed.
+- **Lazy by default.** Heavy engines (pdf.js, docx-preview, SheetJS, Monaco Editor) are loaded on demand, only when their format is actually previewed.
 - **Layout-free.** The library renders inside whatever element you provide. It never opens a modal and never owns your page.
 
 ---
@@ -20,7 +20,9 @@ A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, 
 | PowerPoint (legacy / OpenDocument) | `.ppt`, `.pps`, `.pot`, `.odp` | In-preview fallback card with a Download button | Binary / OpenDocument formats not rendered in-browser |
 | Excel | `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.xltx`, `.xltm`, `.xlt` | Sheet tabs, navigation, search | SheetJS |
 | CSV | `.csv` | Virtualized table, sheet-style navigation, search | Built-in (no dependency) |
-| Text | `.txt`, `.md` (as `text/plain`) | Copy, word-wrap toggle | Built-in |
+| Text | `.txt`, `.log` | Copy, word-wrap toggle | Built-in |
+| Code | `.js`, `.tsx`, `.py`, `.json`, `.hbs`, `.ps1`, `.cshtml`, `.tf`, … any file with an extension or name Monaco recognizes — all **91** Monaco languages, plus filenames like `Dockerfile`, `Gemfile`, `tsconfig.json` | Read-only Monaco editor: syntax highlighting, folding, line numbers, zoom, copy, word-wrap | Monaco (CDN, lazy) |
+| Markdown | `.md`, `.markdown`, `.mkd`, `.mdwn`, … | GitHub-style rendered document (tables, task lists, highlighted fenced code) with a **Preview ⇄ Code** toggle | Built-in (`marked`, lazy) |
 | Images | `.jpg`, `.png`, `.gif`, `.webp`, `.svg`, `.avif`, `.bmp`, `.apng` | Zoom/fit, inspection loupe, rotate | Built-in |
 
 Unsupported or oversized files render a retriable error card (with a Download button) inside the container instead of breaking your layout.
@@ -110,6 +112,13 @@ interface PreviewOptions {
     magnification?: number // 2 | 4 | 8 | 12 | 16 (default 8)
     borderWidth?: number   // lens border thickness in px
   }
+
+  /** Code preview (Monaco) configuration. */
+  monaco?: {
+    /** Base URL of a self-hosted Monaco AMD build — expected to contain
+     *  `vs/loader.js`. See `setMonacoBaseUrl()`. */
+    baseUrl?: string
+  }
 }
 ```
 
@@ -118,6 +127,7 @@ await preview(file, container, {
   maxBytes: 25 * 1024 * 1024, // 25 MB
   workerSrc: '/workers/pdf.worker.min.mjs', // optional, self-hosted worker
   magnifier: { lensSize: 180, magnification: 12 },
+  monaco: { baseUrl: '/vendor/monaco-editor/min' }, // optional, self-hosted Monaco
 })
 ```
 
@@ -202,17 +212,91 @@ main thread (a console warning appears) and the PDF still renders.
 
 ---
 
+## Source-code preview & the Monaco base URL
+
+Source code renders in a **read-only Monaco Editor** with syntax highlighting, folding,
+line numbers, zoom (via font size) and the text controls (copy, word wrap). Monaco is not
+bundled and not statically imported: the library loads Monaco's **AMD build** from a
+version-pinned copy on a public CDN the first time a code file is previewed, exactly like
+the pdf.js worker in the section above. Because the build resolves its worker URLs and
+CSS against `require.config.baseUrl`, the CDN path works cross-origin with zero bundler
+configuration.
+
+**Every Monaco language is reachable — no hand-maintained list.** Monaco is **capability-aware,
+not MIME-aware**: before the other previewers even get a vote, the code previewer asks whether
+Monaco's own language registry recognizes the file — by exact file name, extension, or declared
+MIME — through a generated index (`src/utils/monaco-languages.ts`, built from
+`monaco.languages.getLanguages()`, 91 languages in the pinned version). Files `.hbs`, `.ps1`,
+`.cshtml`, `.tf`, `.pug`, `.sol` or `.razor` get a Monaco editor without anyone curating a list.
+Only files Monaco genuinely resolves are routed to it: a `.yaml` served as `application/yaml`,
+a `.py` served as `application/x-python-code`, or a `.ts` reported as `video/mp2t` all still land
+on Monaco because the extension is a Monaco language. Resolution order is: exact MIME key
+(so PDF/Word/Excel/Presentation/image/Markdown/CSV/text keep their MIME-based ownership), then
+capability fallback in registration order with Code first — Monaco's index, then the other
+previewers' predicates. MIME-exact keys always outrank the fallback, so `text/markdown` stays on
+Markdown, `text/plain` on Text, and `text/csv` on CSV even though Monaco declares some of them.
+Files Monaco does **not** recognize are never forced into it — an unknown `text/x-*` falls to the
+plain-text renderer, and a file no previewer matches shows the unsupported-file card. At render
+time the language id itself is resolved the same way Monaco autodetects — extension, name,
+declared MIME, `#!/` shebang where Monaco declares one (python, node, …) — falling back to
+`plaintext`.
+
+**Bring your own Monaco.** Self-host the AMD build (`monaco-editor/min/` — it ships
+`vs/loader.js`, `editor.main.js`, the worker files and CSS) and point at it whenever you
+self-host assets, run behind a CSP, or need offline previews. Two ways to configure:
+
+```ts
+// Global — set once before previewing any code file:
+import { preview, setMonacoBaseUrl } from '@mohamed-0-turki/preview-file'
+
+setMonacoBaseUrl('/vendor/monaco-editor/min')
+await preview(sourceCodeFile, container)
+```
+
+```ts
+// Per-preview — overrides the global default for a single call:
+await preview(sourceCodeFile, container, { monaco: { baseUrl: '/vendor/monaco-editor/min' } })
+```
+
+The editor is fetched only when a code file is actually rendered — never at import time.
+If the scripts fail to load (offline, blocked CDN), `preview()` rejects and the container
+shows the error card — that failure is the signal to configure `setMonacoBaseUrl()` /
+`options.monaco.baseUrl` for your own environment.
+
+---
+
+## Markdown preview
+
+Markdown files (`.md`, `.markdown`, `.mkd`, … — MIME `text/markdown`) open as a
+**GitHub-style rendered document**: headings, lists, task lists, tables, block quotes,
+inline code, autolinked URLs and images, styled to match GitHub's own look. Sanitized
+before display — `<script>`, `<iframe>`, `<form>` and `on*`/`javascript:`/`data:` vectors
+are stripped. Fenced code blocks are syntax-highlighted by Monaco's real tokenizer,
+chunked off the main flow so many fences don't jank a frame; unknown fences stay plain.
+
+A pinned **Mode** switch in the toolbar toggles **Preview ⇄ Code**: the Code view shows
+the raw source in the same read-only Monaco editor (markdown language) with highlighting,
+line numbers and scrolling. The editor is created lazily on the first switch to Code — a
+Markdown file with no fenced blocks never fetches Monaco at all — and kept alive across
+toggles (visibility is toggled, not destroyed), so switching back and forth is instant. If
+Monaco can't load, the Code view falls back to a scrollable plain-text view rather than
+breaking. Rendering (including the (~300 KB) `marked` runtime) happens only when a
+Markdown file is previewed.
+
+---
+
 ## The toolbar & previewer capabilities
 
 After a successful render, `preview()` mounts a sticky toolbar pinned to the top of the preview container. It behaves like a normal website navbar: it is part of the preview layout (never an overlay), stays visible while the preview content scrolls beneath it, and uses `position: sticky`, so it moves naturally with the page instead of being fixed to the browser viewport. Only the controls the active previewer actually implements appear:
 
+- **Mode** — Preview ⇄ Code toggle (Markdown)
 - **Pages** — previous / next / go-to-page (PDF, Word, PowerPoint)
 - **View** — continuous ↔ single page (PDF, Word, PowerPoint), thumbnails, fullscreen (all)
 - **Zoom** — zoom in/out, reset, fit width / fit page / actual size, live % indicator
 - **Rotate** — clockwise / counter-clockwise, exact-degree input, reset rotation (PDF, images)
 - **Sheet** — sheet tabs (Excel, CSV)
 - **Search** — in-sheet/in-document search with result count (Excel, CSV, PDF)
-- **Text** — copy, word-wrap (text)
+- **Text** — copy, word-wrap (code, text)
 - **Lens** — magnifier magnification & size (images)
 - **File** — download (all)
 
@@ -408,7 +492,8 @@ export class FilePreviewComponent implements AfterViewInit, OnDestroy {
 | `preview(source, container, options?)` | Resolve, detect, parse, render and mount controls for a file into `container`. Resolves when the preview is mounted (parsing is async). Throws on failure — the container also shows an error card. |
 | `clearPreview(container)` | Tear down the active preview in `container` (controls, renderer state) and empty it. |
 | `setPdfWorkerSrc(url)` | Point pdf.js at a worker module URL (self-hosted, bundler-emitted, or blob). Global; overrides the CDN default. See [PDF rendering & the worker](#pdf-rendering--the-worker). |
-| `getPreviewer(mimeType)` | Return the first previewer that can handle `mimeType`, or `undefined`. |
+| `setMonacoBaseUrl(url)` | Point source-code previews at a self-hosted Monaco AMD build (a directory containing `vs/loader.js`). Global; `options.monaco.baseUrl` overrides it per call. See [Source-code preview & the Monaco base URL](#source-code-preview--the-monaco-base-url). |
+| `getPreviewer(mimeType, name?)` | Return the first previewer that can handle `mimeType`, or `undefined`. The optional file name lets Monaco's capability check resolve against Monaco's own language metadata. |
 | `registerPreviewer(PreviewerConstructor)` | Register a custom previewer (see [Extending](#extending)). |
 | `clearPreviewers()` | Remove all registered previewers. |
 | `getRenderer(resultType)` / `registerRenderer(RendererConstructor)` / `clearRenderers()` | The renderer registry, mirrored on the previewer one (see [Extending](#extending)). |
@@ -428,7 +513,7 @@ interface ResolvedSource {
 interface PreviewResult {
   readonly type: string      // e.g. "application/pdf", "application/vnd.word",
                              // "application/vnd.spreadsheet", "application/vnd.presentation",
-                             // "text/csv", "text/plain", "image/png"
+                             // "text/csv", "text/code", "text/plain", "image/png"
   readonly data: unknown
 }
 
@@ -460,7 +545,7 @@ interface Renderer {
 }
 ```
 
-The full capability contract returned by renderers is `PreviewAdapter` (see [`src/controls/types.ts`](src/controls/types.ts)): optional `canZoom`, `canDownload`, `canFullscreen`, `zoomPercent`, `zoomIn/Out/reset`, `download`, `fullscreen`, plus `lens`, `pages`, `fit`, `rotate`, `sheets`, `search`, `text`, `singlePage`, `thumbnails`.
+The full capability contract returned by renderers is `PreviewAdapter` (see [`src/controls/types.ts`](src/controls/types.ts)): optional `canZoom`, `canDownload`, `canFullscreen`, `zoomPercent`, `zoomIn/Out/reset`, `download`, `fullscreen`, plus `lens`, `pages`, `fit`, `rotate`, `sheets`, `search`, `text`, `singlePage`, `thumbnails`, `viewMode` (Preview ⇄ Code).
 
 ---
 
@@ -474,22 +559,22 @@ The full pipeline is extensible at both ends: **previewers** turn a file into a 
 import { registerPreviewer, preview } from '@mohamed-0-turki/preview-file'
 import type { FileInput, PreviewOptions, PreviewResult } from '@mohamed-0-turki/preview-file'
 
-class MarkdownPreviewer {
-  readonly name = 'markdown'
-  readonly supportedMimeTypes = ['text/markdown']
+class TeamNotesPreviewer {
+  readonly name = 'team-notes'
+  readonly supportedMimeTypes = ['application/x-team-notes']
 
   canPreview(mimeType: string): boolean {
-    return mimeType === 'text/markdown'
+    return mimeType === 'application/x-team-notes'
   }
 
   async preview(file: FileInput, options?: PreviewOptions): Promise<PreviewResult> {
-    return { type: 'text/markdown', data: { text: new TextDecoder().decode(file.data) } }
+    return { type: 'application/x-team-notes', data: { text: new TextDecoder().decode(file.data) } }
   }
 }
 
-registerPreviewer(MarkdownPreviewer)
+registerPreviewer(TeamNotesPreviewer)
 
-await preview(markdownFile, container)
+await preview(teamNotesFile, container)
 ```
 
 ### Custom renderer
@@ -499,11 +584,11 @@ import { registerRenderer } from '@mohamed-0-turki/preview-file'
 import type { Renderer, PreviewResult } from '@mohamed-0-turki/preview-file'
 import type { PreviewAdapter } from '@mohamed-0-turki/preview-file'
 
-class MarkdownRenderer implements Renderer {
-  readonly name = 'markdown'
-  readonly supportedTypes = ['text/markdown']
+class TeamNotesRenderer implements Renderer {
+  readonly name = 'team-notes'
+  readonly supportedTypes = ['application/x-team-notes']
   canRender(type: string): boolean {
-    return type === 'text/markdown'
+    return type === 'application/x-team-notes'
   }
   render(container: HTMLElement, result: PreviewResult): PreviewAdapter | void {
     const { text } = result.data as { text: string }
@@ -514,7 +599,7 @@ class MarkdownRenderer implements Renderer {
   }
 }
 
-registerRenderer(MarkdownRenderer)
+registerRenderer(TeamNotesRenderer)
 ```
 
 > Calls to `registerPreviewer` / `registerRenderer` are additive — the built-in previewers remain registered. Use `clearPreviewers()` / `clearRenderers()` when you need to fully replace the set.
@@ -523,7 +608,7 @@ registerRenderer(MarkdownRenderer)
 
 ## Performance notes
 
-- **Lazy loading.** `pdfjs-dist`, `docx-preview`, `xlsx` and `pptx-viewer` are dynamic-imported only when their format is first previewed. The demo site's initial bundle never includes them.
+- **Lazy loading.** `pdfjs-dist`, `docx-preview`, `xlsx`, `pptx-viewer`, `marked` and Monaco Editor are loaded only when their format is first previewed — Monaco through its AMD build (scripts + workers + CSS) from the configured base URL, `marked` (Markdown) only when a Markdown file is previewed. The demo site's initial bundle never includes them.
 - **Virtualization.** Excel sheets and large CSV files render as virtualized tables — only the visible rows are in the DOM; 80 000-row CSV files stay responsive.
 - **Independent containers.** `preview()` is container-scoped; multiple previews on one page don't interfere.
 - **Cancellation.** A generation guard makes stale async work inert: calling `clearPreview()` or a new `preview()` on the same container discards in-flight work from the previous call.
@@ -532,7 +617,7 @@ registerRenderer(MarkdownRenderer)
 
 ## Browser support
 
-Modern evergreen browsers (Chrome, Edge, Firefox, Safari). The package uses `WeakMap`, `Uint8Array`, `AbortController`-free `fetch`, dynamic `import()`, fullscreen/pointer APIs, and (for PowerPoint) `DOMParser` + SVG with `foreignObject` — all present in evergreen browsers.
+Modern evergreen browsers (Chrome, Edge, Firefox, Safari). The package uses `WeakMap`, `Uint8Array`, `AbortController`-free `fetch`, dynamic `import()`, fullscreen/pointer APIs, and (for PowerPoint) `DOMParser` + SVG with `foreignObject`; source-code previews additionally inject a classic `<script>` / AMD `require` — all present in evergreen browsers.
 
 ---
 
@@ -556,6 +641,7 @@ src/
   preview.ts        # orchestration: resolve → detect → previewer → renderer → controls
   types.ts          # cross-cutting types (PreviewOptions, PreviewResult, FileInput, …)
   pdf-worker.ts     # pdf.js worker URL resolution (setPdfWorkerSrc)
+  monaco.ts         # Monaco base URL resolution (setMonacoBaseUrl, CDN default)
   sources/          # SourceInput → ResolvedSource (File/Blob/string normalization)
   previewers/       # file → typed, capability-tagged PreviewResult
     registry.ts     # previewer registry (built on the shared utils/registry factory)
@@ -566,10 +652,17 @@ src/
     types.ts        # Renderer contract
     docview.ts      # shared paged-document stage + PagedDocController (PDF, Word & PowerPoint)
     render-state.ts # per-container render state helper
+    monaco-loader.ts # lazy AMD loader for Monaco (script injection + require.config)
+    monaco-view.ts  # shared Monaco editor + zoom/wrap/copy controller (code + Markdown Code view)
+    monaco-language.ts # resolves a file to a Monaco language id via getLanguages()
+    monaco-languages.ts # generated routing index from Monaco's language registry (see scripts/)
+    monaco-types.ts   # self-contained typing shim (monaco-editor is devDependency only)
     interaction/    # image magnification (loupe) and zoom/pan
-    virtual-table.ts# shared virtualized grid (Excel & CSV)
-  controls/         # sticky capability-driven toolbar
+    virtual-table.ts# shared virtualized grid (Excel & CSV) + table transforms
+  controls/         # sticky capability-driven toolbar (incl. the Mode Preview ⇄ Code group)
   utils/            # framework-agnostic helpers (registry, detectType, parseCsv, …)
+scripts/
+  generate-monaco-languages.mjs # regenerate the routing index from Monaco's own registry
 docs/
   adr/              # architecture decision records (why the design is what it is)
   templates/        # copy-paste scaffolding for new previewers/renderers/controls

@@ -35,6 +35,7 @@ preview-file/
     preview.ts          Orchestrator: source → detect → previewer → renderer → toolbar
     types.ts            Cross-cutting types (no imports)
     pdf-worker.ts       pdf.js worker URL resolution
+    monaco.ts           Monaco AMD base URL resolution (CDN default + setMonacoBaseUrl)
     sources/            SourceInput (File|Blob|string) → ResolvedSource {name, blob}
     utils/              Pure helpers — the dependency bottom (utils imports nothing)
     previewers/         Stage 1: bytes → typed PreviewResult (cheap, pure)
@@ -62,6 +63,9 @@ createSource()        src/sources          → { name, blob }
 detectType()          src/utils/detect     → MIME (declared type trusted, else extension)
         ▼
 getPreviewer()        src/previewers/registry → Previewer (or error card)
+        │             (exact MIME key; else capability-aware fallback with the
+        │              file name — Monaco's own language index, then the other
+        │              previewers' predicates, in registration order)
         ▼
 previewer.preview()   src/previewers/*     → PreviewResult { type, data }   (bytes only, no DOM)
         ▼
@@ -88,14 +92,14 @@ activePreviews        src/preview.ts       → teardown registered per container
 
 | # | Rule |
 | --- | --- |
-| 1 | **Never break the public API** (`src/index.ts`): `preview`, `clearPreview`, `setPdfWorkerSrc`, registry functions, `detectType`, `parseCsv`, and all exported types. Additive changes only. |
+| 1 | **Never break the public API** (`src/index.ts`): `preview`, `clearPreview`, `setPdfWorkerSrc`, `setMonacoBaseUrl`, registry functions, `detectType`, `parseCsv`, and all exported types. Additive changes only. |
 | 2 | **Never duplicate shared logic.** `clamp`, `extensionFrom`, `parseCsv`, blob guards, registries, render state, and paged-document layout already exist in shared modules — import them, don't rewrite them (see §7). |
 | 3 | **No deep runtime imports across layers.** Use each layer's `index.js` barrel for runtime values; type-only imports may target `types.js`. |
 | 4 | **ESM style:** relative imports end in `.js` (NodeNext); use `import type` for type-only imports (`verbatimModuleSyntax`). |
 | 5 | **Comments only explain *why***, never restate code. |
 | 6 | **Capability-driven UI:** renderers never build their own controls; return a `PreviewAdapter` and the toolbar renders what you support. |
 | 7 | **Deterministic teardown:** every resource a renderer creates (observers, rAF, workers, dynamic imports) must be released in `destroy()`, registered via `createRenderState().set(container, attachment)`. |
-| 8 | **Lazy engines:** `pdfjs-dist`, `docx-preview`, `xlsx` are dynamic-imported inside `render()` only — never at module top level. |
+| 8 | **Lazy engines:** `pdfjs-dist`, `docx-preview`, `xlsx`, `pptx-viewer` are dynamic-imported inside `render()` only — never at module top level. Monaco (Code) is also loaded only inside `render()`, but through its AMD build from a configured base URL (`src/renderers/monaco-loader.ts`), never via a bundler-managed import — see ADR-0013. |
 | 9 | **Naming:** file `{format}.ts`, class `{Format}Previewer` / `{Format}Renderer`. |
 | 10 | **No tests to add yet** without reading `docs/TESTING.md` first (harness is not yet installed; expect `npm test` to be absent). |
 
@@ -192,6 +196,14 @@ npm run build && cd playground && npm install && npm run dev   # http://localhos
   in `destroy()` leaks. Payload destroy does `unmountControls()` + `renderer.destroy(stage)`.
 - **Forgotten registration** — a new `{Format}Previewer`/`{Format}Renderer` that is written
   but not `register*`-ed never runs, and the package still typechecks.
+- **Overlapping predicates** — the registry is first-match in registration order.
+  `TextPreviewer`'s predicate is `text/*`, so `CodePreviewer` (whose MIME list is mostly
+  `text/x-*`) must stay registered before it. If you add a renderer whose key is a
+  prefix-predicate, register the more specific one first.
+- **Monaco base URL must point at the `min/` build folder** — `setMonacoBaseUrl` expects
+  a directory that directly contains `vs/loader.js` (e.g. `…/monaco-editor@0.56.0/min`).
+  The loader then configures AMD with `baseUrl` + `paths.vs`, which is also what makes
+  Monaco's workers and CSS resolve cross-origin (or same-origin when self-hosted).
 - **Public-adjacent mistakes** — the renderer/previewer classes are internal; the public
   surface is functions + types only. Don't export new symbols from `src/index.ts` casually.
 

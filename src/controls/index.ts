@@ -13,4 +13,5 @@ export type {
   SinglePageMode,
   TextControls,
   ThumbnailControls,
+  ViewModeControls,
 } from './types.js'

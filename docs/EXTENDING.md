@@ -16,6 +16,7 @@ be packaged, and the full workflow for adding a new format. It complements
 | **Toolbar groups** | `src/controls/toolbar.ts` | (internal) `mountControls` | Rendering of new capabilities |
 | **Sources** | `src/sources/source.ts` | `SourceInput` | New input kinds (breaking — see below) |
 | **PDF worker** | `src/pdf-worker.ts` | `setPdfWorkerSrc`, `options.workerSrc` | Bring-your-own worker |
+| **Monaco base URL** | `src/monaco.ts` | `setMonacoBaseUrl`, `options.monaco.baseUrl` | Bring-your-own Monaco AMD build |
 | **Utilities** | `src/utils/` | `detectType`, `parseCsv` (+ internal helpers) | Shared logic for all of the above |
 
 Everything a consumer can call at runtime is the functions set in `src/index.ts`. The
@@ -67,6 +68,10 @@ replacement first and leaving the rest intact.
 Heavy plugin code should follow the package's own lazy rule — a plugin module should
 globally register lightweight constructors whose `render()`/`preview()` dynamic-import
 the actual engine only when invoked, mirroring [ADR-0004](adr/0004-lazy-engine-loading.md).
+The built-in Code renderer is the reference for a non-`import()` lazy strategy: instead
+of a bundler-managed dynamic import, it injects `vs/loader.js` and calls `require.config`
+pointed at the configured base URL, mirroring how the PDF worker is loaded by URL
+([ADR-0009](adr/0009-pdf-worker-strategy.md), [ADR-0013](adr/0013-monaco-code-preview.md)).
 
 ## Full workflow: adding a new format (e.g. Markdown)
 

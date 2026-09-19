@@ -13,11 +13,11 @@ import { ICONS as LUCIDE } from '../icons/icons.js'
  *   top of the preview container with `position: sticky`, so it stays visible
  *   while the preview content scrolls beneath it and moves naturally with the
  *   page. It is not fixed to the browser viewport.
- * - Groups are labeled clusters (Pages / Zoom / View / Sheet / Search /
+ * - Groups are labeled clusters (Mode / Pages / Zoom / View / Sheet / Search /
  *   Text / Lens / File) separated by hairline dividers.
- * - Pinned groups (Pages, Zoom, View, Sheet) stay on the bar; everything else
- *   collapses into a glass overflow menu ("More") on narrow surfaces, keeping
- *   the bar responsive without wrapping or overflowing.
+ * - Pinned groups (Mode, Pages, Zoom, View, Sheet) stay on the bar; everything
+ *   else collapses into a glass overflow menu ("More") on narrow surfaces,
+ *   keeping the bar responsive without wrapping or overflowing.
  * - Icons are Lucide SVGs (24px grid, 2px stroke, round caps, currentColor,
  *   see src/icons/) rendered inline at 18px so they inherit the control style.
  */
@@ -513,6 +513,7 @@ interface ToolbarRefs {
   searchInput?: HTMLInputElement
   searchClear?: HTMLButtonElement
   searchCount?: HTMLSpanElement
+  modeSeg?: SegmentedResult<'preview' | 'code'>
 }
 
 function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: () => void; scheduleLayout: () => void } {
@@ -563,6 +564,32 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
     const { wrapper, row } = makeGroup(label, cluster)
     build(row)
     groupRefs.push({ key, el: wrapper, cluster, pinned, width: 0 })
+  }
+
+  /* Mode — pinned so switching between alternate views (e.g. a Markdown
+     document's rendered Preview and its raw Code) stays one tap away. */
+  if (actions.viewMode) {
+    const viewMode = actions.viewMode
+    addGroup('mode', 'Mode', 'document', true, (row) => {
+      const seg = makeSegmented<'preview' | 'code'>(
+        'View mode',
+        [
+          { label: 'Preview', value: 'preview' },
+          { label: 'Code', value: 'code' },
+        ],
+        viewMode.mode,
+        (value) => {
+          try {
+            viewMode.setMode(value)
+          } catch (error) {
+            console.error('[preview-file] view mode switch failed', error)
+          }
+          refresh()
+        }
+      )
+      refs.modeSeg = seg
+      row.appendChild(seg.el)
+    })
   }
 
   /* Pages — pinned. */
@@ -957,6 +984,9 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
         refs.zoomLabel.textContent = `${percent}%`
         refs.zoomLabel.dataset.lastZoom = String(percent)
       }
+    }
+    if (refs.modeSeg && actions.viewMode) {
+      refs.modeSeg.setActive(actions.viewMode.mode)
     }
     if (refs.rotationInput && typeof actions.rotate?.rotation === 'number') {
       const rotation = actions.rotate.rotation
