@@ -43,13 +43,17 @@ sources layer. Only exported via `src/types.ts`.
 | Word | msword / vnd.word family | `application/vnd.word` | `{ blob, format }` (`docx\|docm\|dotx\|dotm\|doc\|dot`) |
 | Excel | ms-excel / spreadsheetml | `application/vnd.spreadsheet` | `{ blob, format }` |
 | Presentation | ms-powerpoint / presentationml / vnd.oasis.opendocument.presentation | `application/vnd.presentation` | `{ blob, format }` (`pptx\|pptm\|potx\|potm\|ppsx\|ppsm\|ppt\|pps\|pot\|odp`) |
-| Archive | zip / tar / gzip / x-gzip / x-tar / x-gtar / x-compressed-tar | `application/x-archive` | `{ bytes, name, format }` (`zip\|tar\|tgz\|gz`; `tgz` covers `.tar.gz`) |
+| Archive | zip / x-zip / zipx / 7z / x-7z-compressed / rar / x-rar-compressed / cab / x-cab / tar / x-tar / gzip / x-gzip / bzip2 / x-bzip2 / xz / x-xz / zstd / x-zstd / cpio / x-cpio / ar / (x-cpio/x-archive via `sniffArchiveFormat` when a name resolves) | `application/x-archive` | `{ bytes, name, format }` (`zip\|zipx\|7z\|rar\|cab\|tar\|tgz\|gz\|bz2\|tbz\|xz\|txz\|zst\|tzst\|ar\|cpio`) |
 
 Word, Excel and Presentation normalize every vendor MIME into one result type;
 `format` lets the renderer choose between a real render and the legacy fallback card.
 The Archive previewer keeps the raw bytes and the resolved `format` in its result;
-the actual format detection is delegated to `resolveArchiveFormat` (`src/archives/`),
-which keys on the file name (`sample.tar.gz`, `x.tgz`) and then on MIME.
+the actual format detection is delegated to `src/archives/formats.ts` and exported
+through `src/archives/index.ts`: `canPreview` accepts a name whose extension resolves
+(so a `application/x-7z-compressed` file reaches the archive browser without a MIME
+entry — the table-driven fix that started this), and `preview` falls back to
+`sniffArchiveFormat` for unnamed data. All 16 formats share one result type and one
+renderer.
 
 > **Registration order matters for Code vs Text.** `CodePreviewer` and
 > `MarkdownPreviewer` are registered before `TextPreviewer` in `index.ts`.

@@ -26,6 +26,7 @@ const ORDER = [
   'refresh-ccw', 'chevron-left', 'chevron-right', 'download',
   'move-horizontal', 'scan', 'ruler', 'file', 'file-stack', 'folder',
   'maximize', 'ellipsis', 'x', 'copy', 'wrap-text', 'search', 'layout-grid',
+  'lock',
 ]
 
 /** Add a decorative `aria-hidden` to the root <svg> tag of a Lucide asset. */

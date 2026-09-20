@@ -60,13 +60,18 @@ src/
     registry.ts        createRegistry<T>() — generic register/get/clear factory
     download.ts        downloadBlob() (moved here so renderers may trigger downloads)
     index.ts           Barrel export
-  archives/            Archive reading layer (ZIP/TAR/GZ) behind one provider interface
+  archives/            Archive reading layer (ZIP/7z/RAR/TAR/compressed) behind one provider interface
     types.ts           ArchiveFormat, ArchiveEntry, ArchiveProvider, ArchivePasswordError
+    formats.ts         THE format descriptor table: extensions, MIME aliases, magic sniffs, labels, inner names
     zip.ts             ZipProvider (list/read) built on @zip.js/zip.js, password support
     tar.ts             Hand-rolled TAR parser (ustar/PAX/GNU) — no dependency
     tar-provider.ts    TarProvider over parsed TAR entries
-    gz.ts              GzProvider — gunzip then sniff TAR vs. single file (fflate)
-    index.ts           resolveArchiveFormat(), createArchiveProvider(), labels
+    compressed.ts      CompressedProvider — decompress once, TAR-sniff vs. single file (fflate engine, shared)
+    gz.ts              GzProvider over compressed.ts using fflate gunzip
+    seven-zip.ts       7z-wasm backend + SevenZipProvider (7z/rar/cab + bz2/xz/zst), password + header-encryption
+    ar.ts              ArProvider — hand-rolled GNU/BSD extended names, covers .deb
+    cpio.ts            CpioProvider — hand-rolled newc/crc/odc
+    index.ts           resolveArchiveFormat(), sniffArchiveFormat(), createArchiveProvider(), labels
   previewers/          One Previewer per format; maps a FileInput to a typed result
     index.ts           Registers all built-in previewers (side effect of import)
     registry.ts        Previewer registry (built on utils/registry's createRegistry)
@@ -80,7 +85,7 @@ src/
     legacy-fallback.ts Shared "Preview unavailable" card (Word + Presentation fallbacks)
     docview.ts         Shared "paged document" stage + PagedDocController (PDF + Word + PowerPoint)
     virtual-table.ts   Shared virtualized table (Excel + CSV share it)
-    archive.ts         Archive file-browser renderer (ZIP/TAR/GZ)
+    archive.ts         Archive file-browser renderer (all supported formats) + detect→unlock→browse gate
     interaction/       Shared pointer/wheel interaction helpers (magnifier, zoomable)
   controls/            Toolbar, download helper, capability types
     toolbar.ts         mountControls(): sticky navbar toolbar + overflow menu
@@ -208,20 +213,46 @@ Because the toolbar is *derived* from the adapter, adding a new control is: (1) 
 ## Archive reading & nested preview
 
 Archives are read behind one interface in `src/archives/`:
-`ArchiveProvider { list(); read(path); unlock(password); isLocked(); encrypted; dispose() }`.
+`ArchiveProvider { requiresPassword(); unlock(password); list(); read(path); encrypted; isLocked(); dispose() }`.
 `createArchiveProvider(bytes, format, name)` picks the implementation — `ZipProvider`
-(@zip.js/zip.js), `TarProvider` (hand-rolled `tar.ts`, no tar dependency exists in
-fflate), or `GzProvider` (fflate `gunzipSync`, then TAR-sniff vs. single file). Formats
-are resolved by `resolveArchiveFormat(name ?? mime?)` before a provider is built, so
-`.tar.gz` → `tgz` regardless of the OS reporting `application/gzip`.
+(@zip.js/zip.js, main-thread decryption with `useWebWorkers: false`), `TarProvider`
+(hand-rolled `tar.ts`, no tar dependency exists in
+fflate), `GzProvider`/`CompressedProvider` (fflate decompress, then TAR-sniff vs. a
+single file), `SevenZipProvider` (`.7z`/`.rar`/`.cab` listing + `.bz2`/`.xz`/`.zst`
+single-stream decompression via 7-Zip compiled to WASM, `7z-wasm`), `ArProvider`
+(hand-rolled, covers `.deb`) and `CpioProvider` (hand-rolled `newc`/`crc`/`odc`).
+Formats are resolved by one shared descriptor table (`formats.ts`): extensions win
+(`.tar.gz` → `tgz` regardless of the OS reporting `application/gzip`), then MIME
+aliases, then `sniffArchiveFormat` magic-bytes as the previewer's final fallback.
+Adding a format = one table row + one provider case; no MIME special-casing anywhere.
 
-- **Encryption.** A locked ZIP still lists; reading an encrypted entry throws
-  `ArchivePasswordError`. `unlock(password)` validates by reading the first encrypted
-  entry (AES first, then ZipCrypto) and caches the password on the provider instance —
-  it is dropped on `dispose()`, never stored globally.
+- **Encryption (detect → unlock → browse).** The renderer calls `requiresPassword()`
+  before anything else. Detection may enumerate internally — zip central directory
+  (`entry.encrypted` flags) or 7-Zip `l -slt` (`Encrypted`/`AES` fields) — but that data
+  is never surfaced: a header-encrypted `.7z`/`.rar` cannot list without the password,
+  so the probe run is reinterpreted as "password required", and for content-encrypted
+  ZIP/7z/RAR `list()` stays gated (throws `ArchivePasswordError`) until `unlock()`
+  accepts. The renderer therefore renders only a password prompt card for encrypted
+  archives — no rows, breadcrumbs, sizes, search or navigation — and builds the archive
+  tree only after authentication. `unlock(password)` validates by reading the first
+  encrypted entry (ZIP AES first, then ZipCrypto; 7z/rar via 7-Zip extract) and caches
+  the password on the provider instance — dropped on `dispose()`, never global.
+- **7z-wasm execution model.** The Emscripten build runs single-threaded on the package
+  main thread (Node ESM) or Web Worker (browser). Output goes through `print`/`printErr`
+  captured at module construction and routed per-call; every invocation passes an
+  explicit `-p` so 7-Zip never prompts interactively; extraction goes to a scratch dir
+  inside the emscripten FS then `FS.readFile` (`-so` piping is avoided because binary
+  data is unsafe over the text channel). The `7zz.wasm` binary is embedded in this
+  package as a lazily-imported base64 chunk and handed to the loader as
+  `Module.wasmBinary`, so no `.wasm` asset fetch ever happens — dev servers cannot
+  403/404 it and bundlers cannot re-resolve it (`configureArchiveWasm({ locateFile })`
+  opts a consumer into hosting the file externally instead).
 - **The Archive renderer** (`src/renderers/archive.ts`) is a self-contained file browser
   (breadcrumbs, back/forward/root, name search, virtualized rows, per-file download,
-  unlock bar). It recursively previews an inner file via the `RenderContext` that
+  password prompt). Encrypted archives boot into a full-screen locked prompt and never
+  initialize the tree — no metadata (names, sizes, breadcrumbs, search) is rendered
+  behind the dialog; Cancel keeps the archive locked with a Retry affordance. It
+  recursively previews an inner file via the `RenderContext` that
   `preview.ts` injects into `render()`, so a `.pdf`/`.md`/`.cs`/`.png` in an archive
   opens with that format's normal toolbar inside the archive's own preview host. A
   session counter + rAF-paint guard means a slow inner `previewSource()` resolving after

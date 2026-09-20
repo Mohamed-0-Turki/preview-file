@@ -66,15 +66,20 @@ the editor instance in `destroy()`.
 
 The Archive renderer (`archive.ts`) is registered after Presentation. It builds a
 self-contained file browser from `ArchiveProvider` (`src/archives/`): breadcrumb +
-history navigation, virtualized rows, per-file download, a password unlock bar for
-encrypted ZIPs, and a nested preview host fed through `context.previewSource`. It
-returns an empty `PreviewAdapter` (`{}`) so the outer toolbar still shows **Download**
-for the *original* archive. It owns a session counter + a pending-frame guard so
-navigation races (a slow inner file resolving after you've moved away, queued rAF
-paints) can never write into a stale view; all of it unwinds via the `destroy`
-attachment and `context.clearPreview`. Depth is bounded in practice — nesting happens
-only when an archive contains another archive, whose preview recurses through the same
-`previewSource`.
+history navigation, virtualized rows, per-file download, a nested preview host fed
+through `context.previewSource`. Encrypted archives follow a **detect → unlock →
+browse** contract: `boot()` calls `provider.requiresPassword()` first and, for an
+encrypted archive, renders *only* a password prompt card — no rows, breadcrumbs,
+sizes or search are shown, and navigation is inert. Only a valid password unlocks the
+archive; `provider.list()` then runs and the normal tree builds. A wrong password
+keeps the prompt with an error, and Cancel sets a "remains locked" state with a Retry
+button. The renderer returns an empty `PreviewAdapter` (`{}`) so the outer toolbar
+still shows **Download** for the *original* archive. It owns
+a session counter + a pending-frame guard so navigation races (a slow inner file
+resolving after you've moved away, queued rAF paints) can never write into a stale view;
+all of it unwinds via the `destroy` attachment and `context.clearPreview`. Depth is
+bounded in practice — nesting happens only when an archive contains another archive,
+whose preview recurses through the same `previewSource`.
 
 ## Rules for contributors
 

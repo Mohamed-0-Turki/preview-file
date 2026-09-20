@@ -1,6 +1,6 @@
 # preview-file
 
-A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, PowerPoint, Excel, CSV, source code, text, image and archive (ZIP/TAR/TAR.GZ/GZ) files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, native slide rendering for PowerPoint, spreadsheet-style data views for Excel/CSV, Monaco-powered syntax highlighting for source code, an in-place archive file browser that previews the files inside it, and a sticky top toolbar that behaves like a navbar and only shows the controls the active preview supports.
+A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, PowerPoint, Excel, CSV, source code, text, image and archive (ZIP, 7z, RAR, TAR, TAR.GZ/TGZ, and compressed streams) files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, native slide rendering for PowerPoint, spreadsheet-style data views for Excel/CSV, Monaco-powered syntax highlighting for source code, an in-place archive file browser that previews the files inside it, and a sticky top toolbar that behaves like a navbar and only shows the controls the active preview supports.
 
 - **No framework required.** Vanilla JS is a first-class citizen; React, Vue, Svelte and Angular use the exact same `preview()` call.
 - **Capability-driven controls.** Each previewer declares what it can do and the toolbar renders exactly that (zoom, pages, sheets, search, rotate, thumbnails, lens, download, fullscreen).
@@ -24,9 +24,9 @@ A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, 
 | Code | `.js`, `.tsx`, `.py`, `.json`, `.hbs`, `.ps1`, `.cshtml`, `.tf`, … any file with an extension or name Monaco recognizes — all **91** Monaco languages, plus filenames like `Dockerfile`, `Gemfile`, `tsconfig.json` | Read-only Monaco editor: syntax highlighting, folding, line numbers, zoom, copy, word-wrap | Monaco (CDN, lazy) |
 | Markdown | `.md`, `.markdown`, `.mkd`, `.mdwn`, … | GitHub-style rendered document (tables, task lists, highlighted fenced code) with a **Preview ⇄ Code** toggle | Built-in (`marked`, lazy) |
 | Images | `.jpg`, `.png`, `.gif`, `.webp`, `.svg`, `.avif`, `.bmp`, `.apng` | Zoom/fit, inspection loupe, rotate | Built-in |
-| Archive | `.zip`, `.tar`, `.tgz`, `.tar.gz`, `.gz` | File-browser view: folders, breadcrumbs, back/forward/root, search, per-file download, password unlock; opening a file previews it with the normal pipeline | Built-in (`@zip.js/zip.js`, `fflate`) |
+| Archive | `.zip`, `.zipx`, `.7z`, `.rar`, `.cab`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz`, `.tar.xz`, `.txz`, `.tar.zst`, `.tzst`, `.gz`, `.bz2`, `.xz`, `.zst`, `.ar`, `.deb`, `.cpio` | File-browser view: folders, breadcrumbs, back/forward/root, search, per-file download, password unlock; opening a file previews it with the normal pipeline | Built-in (`@zip.js/zip.js`, `fflate`, `7z-wasm`) |
 
-Unsupported or oversized files render a retriable error card (with a Download button) inside the container instead of breaking your layout. Unsupported archive formats (`.rar`, `.7z`, `.bz2`, `.xz`) fall back to that error card.
+Unsupported or oversized files render a retriable error card (with a Download button) inside the container instead of breaking your layout. Detection is table-driven from one shared format descriptor (`src/archives/formats.ts`), so any future archive type is added in that table plus one provider case — no MIME special-casing. RAR and CAB files can be browsed (and their single and extracted members opened/downloaded) thanks to 7-Zip's decoders embedded via `7z-wasm`, but *creating* them is not possible here and they were verified by signature.
 
 ---
 
@@ -288,11 +288,14 @@ Markdown file is previewed.
 
 ## Archive preview
 
-ZIP, TAR, TAR.GZ / TGZ and bare `.gz` files open as an in-place file browser
-(`.gz` contents are transparently decompressed; if the decompressed bytes are
-themselves a TAR, it is browsed as one, otherwise the single file is offered for
-preview/download). The archive's own navigation UI renders inside the preview stage,
-while the outer toolbar keeps its **File → Download** action for saving the *original* archive.
+ZIP, ZIPX, TAR and the whole compressed-TAR family open as an in-place file browser:
+`.tar.gz`/`.tgz`/`.tar.bz2`/`.tbz`/`.tar.xz`/`.txz`/`.tar.zst`/`.tzst` decompress to a
+browsable TAR, bare `.gz`/`.bz2`/`.xz`/`.zst` streams expose a single inner file, and
+`.7z`, `.rar`, `.cab`, `.ar`/`.deb` and `.cpio` archives list their contents the same
+way. Extraction runs in the browser via 7-Zip (`7z-wasm`), archive parsing for TAR/AR/
+CPIO is hand-rolled, and Zip/fflate cover the rest. The archive's own navigation UI
+renders inside the preview stage, while the outer toolbar keeps its **File → Download**
+action for saving the *original* archive.
 
 - **Folders & files** — the archive is listed like a file manager: directories first,
   virtualized rows for large archives, size column, per-file Download button, and a root
@@ -305,11 +308,15 @@ while the outer toolbar keeps its **File → Download** action for saving the *o
   toolbar (zoom, pages, download of that inner file), and back/forward/navigating away
   tears the inner preview down automatically. Symbolic and hard links show a note with
   their target instead of recursing.
-- **Password-protected archives** — encrypted ZIP entries decrypt transparently once the
-  password is entered in the unlock bar (ZIP AES is tried first, then ZipCrypto);
-  correctness is validated by reading the first encrypted file, wrong passwords are
-  rejected in place, and unencrypted files inside a locked archive remain browsable.
-  Passwords only live on the provider instance and are dropped when the preview closes.
+- **Password-protected archives** — encrypted ZIP entries decrypt once the password is
+  entered in the unlock bar (ZIP AES first, then ZipCrypto); encrypted `.7z`/`.rar`
+  members extract through 7-Zip with the same password. Two shapes are handled: most
+  archives list freely and only gate reading an encrypted entry, but a header-encrypted
+  `.7z`/`.rar` cannot list at all until the password is accepted, so the unlock bar is
+  shown up front. Correctness is validated by reading the first encrypted file, wrong
+  passwords are rejected in place, and unencrypted files inside a locked archive remain
+  browsable. Passwords only live on the provider instance and are dropped when the
+  preview closes.
 
 ---
 

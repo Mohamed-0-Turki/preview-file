@@ -111,9 +111,23 @@ const EXTENSION_TO_MIME: Readonly<Record<string, string>> = {
   bmp: 'image/bmp',
   apng: 'image/apng',
   zip: 'application/zip',
+  zipx: 'application/x-zip-compressed',
+  '7z': 'application/x-7z-compressed',
+  rar: 'application/vnd.rar',
+  cab: 'application/vnd.ms-cab-compressed',
   tar: 'application/x-tar',
   gz: 'application/gzip',
   tgz: 'application/x-tar',
+  bz2: 'application/x-bzip2',
+  tbz: 'application/x-bzip2',
+  tbz2: 'application/x-bzip2',
+  xz: 'application/x-xz',
+  txz: 'application/x-xz',
+  zst: 'application/zstd',
+  tzst: 'application/zstd',
+  cpio: 'application/x-cpio',
+  ar: 'application/x-archive',
+  deb: 'application/vnd.debian.binary-package',
 }
 
 export function mimeFromExtension(extension: string): string | undefined {

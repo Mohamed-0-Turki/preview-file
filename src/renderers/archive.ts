@@ -75,6 +75,65 @@ const ARCHIVE_CSS = `
   cursor: pointer;
 }
 .pf-archive button.pf-action:disabled { opacity: 0.7; cursor: default; }
+.pf-archive button.pf-btn {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.pf-archive button.pf-btn:hover { background: var(--bar); }
+.pf-archive .pf-locked {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #ffffff;
+}
+.pf-archive .pf-lockcard {
+  width: 100%;
+  max-width: 380px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 6px 24px rgba(31, 35, 40, 0.08);
+}
+.pf-archive .pf-lockcard .pf-locktitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.pf-archive .pf-lockcard .pf-lockhint {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+.pf-archive .pf-lockrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pf-archive .pf-lockrow input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+}
+.pf-archive .pf-lockmsg {
+  color: var(--error);
+  font-size: 12px;
+  min-height: 16px;
+  margin-top: 6px;
+}
 .pf-archive .pf-row {
   display: flex;
   align-items: center;
@@ -257,23 +316,31 @@ export class ArchiveRenderer implements Renderer {
       'position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;background:#ffffff;'
     body.appendChild(listPanel)
 
-    /* Password unlock strip, shown atop the list for encrypted archives. */
-    const unlockStrip = document.createElement('div')
-    unlockStrip.style.cssText =
-      `flex:0 0 auto;display:none;flex-direction:column;gap:6px;padding:10px 12px;` +
-      `border-bottom:1px solid var(--line);background:#fff8c5;`
-    listPanel.appendChild(unlockStrip)
+    /* Password unlock view, shown full-screen until a valid password opens the
+       archive. No listing/breadcrumbs/sizes are rendered while it is visible. */
+    const unlockView = document.createElement('div')
+    unlockView.className = 'pf-locked'
+    unlockView.style.display = 'none'
+    body.appendChild(unlockView)
+
+    const unlockCard = document.createElement('div')
+    unlockCard.className = 'pf-lockcard'
+    unlockView.appendChild(unlockCard)
 
     const unlockTitle = document.createElement('div')
-    unlockTitle.style.cssText = 'display:flex;align-items:center;gap:6px;font-weight:600;'
-    unlockTitle.appendChild(iconEl(LUCIDE['file-stack'], 14, 'var(--folder)'))
+    unlockTitle.className = 'pf-locktitle'
+    unlockTitle.appendChild(iconEl(LUCIDE['lock'], 15, 'var(--folder)'))
     const unlockTitleText = document.createElement('span')
     unlockTitleText.textContent = 'Password-protected archive'
     unlockTitle.appendChild(unlockTitleText)
-    unlockStrip.appendChild(unlockTitle)
+    unlockCard.appendChild(unlockTitle)
+
+    const unlockHint = document.createElement('p')
+    unlockHint.className = 'pf-lockhint'
+    unlockCard.appendChild(unlockHint)
 
     const unlockRow = document.createElement('div')
-    unlockRow.style.cssText = 'display:flex;align-items:center;gap:6px;width:100%;max-width:420px;'
+    unlockRow.className = 'pf-lockrow'
     const unlockInput = document.createElement('input')
     unlockInput.type = 'password'
     unlockInput.placeholder = 'Enter password'
@@ -284,18 +351,22 @@ export class ArchiveRenderer implements Renderer {
       `border-radius:4px;font:inherit;color:var(--ink);background:#ffffff;`
     const unlockBtn = document.createElement('button')
     unlockBtn.type = 'button'
-    unlockBtn.textContent = 'Unlock'
+    unlockBtn.textContent = 'Open Archive'
     unlockBtn.className = 'pf-action'
     unlockBtn.addEventListener('click', () => void submitUnlock())
     unlockInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') void submitUnlock()
     })
-    unlockRow.append(unlockInput, unlockBtn)
-    unlockStrip.appendChild(unlockRow)
+    const cancelBtn = document.createElement('button')
+    cancelBtn.type = 'button'
+    cancelBtn.textContent = 'Cancel'
+    cancelBtn.className = 'pf-btn'
+    unlockRow.append(unlockInput, unlockBtn, cancelBtn)
+    unlockCard.appendChild(unlockRow)
 
     const unlockMessage = document.createElement('div')
-    unlockMessage.style.cssText = 'color:var(--error);font-size:12px;min-height:16px;'
-    unlockStrip.appendChild(unlockMessage)
+    unlockMessage.className = 'pf-lockmsg'
+    unlockCard.appendChild(unlockMessage)
 
     const listScroll = document.createElement('div')
     listScroll.style.cssText = 'position:relative;flex:1 1 auto;overflow:auto;background:#ffffff;'
@@ -345,6 +416,7 @@ export class ArchiveRenderer implements Renderer {
     }
 
     const nav = (path: string): void => {
+      if (lockMode !== 'browser') return
       if (path === history[historyIndex]) {
         applyPath(path)
         return
@@ -356,6 +428,7 @@ export class ArchiveRenderer implements Renderer {
     }
 
     const fromHistory = (step: number): void => {
+      if (lockMode !== 'browser') return
       const next = historyIndex + step
       if (next < 0 || next >= history.length) return
       historyIndex = next
@@ -363,6 +436,7 @@ export class ArchiveRenderer implements Renderer {
     }
 
     const applyPath = (path: string): void => {
+      if (lockMode !== 'browser') return
       currentPath = path
       session += 1
       updateNavState()
@@ -530,7 +604,7 @@ export class ArchiveRenderer implements Renderer {
       } catch (error) {
         if (error instanceof ArchivePasswordError) {
           pendingOpenEntry = entry
-          revealUnlockStrip(`Enter the password to view "${entry.name}".`)
+          showLockedView(`Enter the password to view "${entry.name}".`)
           return
         }
         if (session !== mySession) return
@@ -560,7 +634,7 @@ export class ArchiveRenderer implements Renderer {
       } catch (error) {
         if (error instanceof ArchivePasswordError) {
           pendingOpenEntry = entry
-          revealUnlockStrip(`Enter the password to download "${entry.name}".`)
+          showLockedView(`Enter the password to download "${entry.name}".`)
           return
         }
         console.error('[preview-file] archive download failed', error)
@@ -612,11 +686,69 @@ export class ArchiveRenderer implements Renderer {
     }
 
     /* ---- Password unlock ---- */
-    const revealUnlockStrip = (message: string): void => {
-      unlockStrip.style.display = 'flex'
-      unlockMessage.textContent = message
+    /* While locked the browser shows only the prompt card: no breadcrumbs,
+       sizes or rows are rendered, and navigation is inert. `requiresPassword`
+       is called during boot, so an encrypted archive never lists first. */
+    let lockMode: 'browser' | 'locked' = 'browser'
+
+    const setTopbarChrome = (enabled: boolean): void => {
+      breadcrumbs.style.display = enabled ? '' : 'none'
+      formatBadge.style.display = enabled ? '' : 'none'
+      searchToggle.style.display = enabled ? '' : 'none'
+      searchInput.style.display = enabled ? '' : 'none'
+      backBtn.disabled = enabled ? historyIndex <= 0 : true
+      forwardBtn.disabled = enabled ? historyIndex >= history.length - 1 : true
+      rootBtn.disabled = !enabled
+    }
+
+    const showLockedView = (message: string): void => {
+      lockMode = 'locked'
+      session += 1
+      context.clearPreview(previewHost)
+      unlockView.replaceChildren()
+      unlockView.appendChild(unlockCard)
+      unlockHint.textContent = message
+      unlockInput.value = ''
+      unlockBtn.disabled = false
+      unlockBtn.textContent = 'Open Archive'
+      cancelBtn.style.display = ''
+      unlockMessage.textContent = ''
+      unlockView.style.display = 'flex'
+      previewHost.style.display = 'none'
+      listPanel.style.display = 'none'
+      setTopbarChrome(false)
       unlockInput.focus()
     }
+
+    const closeLockedView = async (): Promise<void> => {
+      try {
+        archiveEntries = await provider.list()
+      } catch (error) {
+        if (error instanceof ArchivePasswordError) {
+          showLockedView('Enter the password to view the archive contents.')
+          return
+        }
+        showLockedView(`Could not open archive: ${(error as Error).message}`)
+        return
+      }
+      unlockView.style.display = 'none'
+      listPanel.style.display = 'flex'
+      setTopbarChrome(true)
+      lockMode = 'browser'
+      updateNavState()
+      renderBreadcrumbs(currentPath)
+      renderDir(currentPath)
+    }
+
+    const cancelUnlock = (): void => {
+      unlockInput.value = ''
+      unlockBtn.textContent = 'Try Again'
+      cancelBtn.style.display = 'none'
+      unlockMessage.textContent = ''
+      unlockHint.textContent = 'Archive remains locked. A password is required to view its contents.'
+      unlockInput.blur()
+    }
+    cancelBtn.addEventListener('click', cancelUnlock)
 
     const submitUnlock = async (): Promise<void> => {
       const password = unlockInput.value
@@ -625,27 +757,50 @@ export class ArchiveRenderer implements Renderer {
         return
       }
       unlockBtn.disabled = true
+      const mySession = session
       try {
         const accepted = await provider.unlock(password)
+        if (session !== mySession) return
         if (accepted) {
-          unlockStrip.style.display = 'none'
           unlockMessage.textContent = ''
-          unlockInput.value = ''
           const target = pendingOpenEntry
           pendingOpenEntry = undefined
-          if (target) void loadEntry(target)
+          if (target) {
+            await closeLockedView()
+            void loadEntry(target)
+          } else {
+            await closeLockedView()
+          }
         } else {
+          unlockBtn.textContent = 'Try Again'
           unlockMessage.textContent = 'Incorrect password. Try again.'
           unlockInput.select()
         }
       } finally {
-        unlockBtn.disabled = false
+        if (session === mySession) unlockBtn.disabled = false
       }
     }
 
     /* ---- Boot ---- */
     const initialSession = session
     try {
+      /* Detection may enumerate internally but never renders: an encrypted
+         archive stops here and shows only the password prompt. */
+      const requiresPassword = await provider.requiresPassword()
+      if (session !== initialSession) return {}
+      if (requiresPassword) {
+        updateNavState()
+        showLockedView(`Enter the password to browse "${archiveName}".`)
+        this.attachments.set(container, {
+          destroy: () => {
+            session += 1
+            cancelFrame()
+            context.clearPreview(previewHost)
+            provider.dispose()
+          },
+        })
+        return {}
+      }
       archiveEntries = await provider.list()
     } catch (error) {
       root.remove()
@@ -655,12 +810,9 @@ export class ArchiveRenderer implements Renderer {
     if (session !== initialSession) return {}
 
     updateNavState()
+    setTopbarChrome(true)
     renderBreadcrumbs('')
     renderDir('')
-
-    if (provider.encrypted && provider.isLocked()) {
-      revealUnlockStrip('This archive is password-protected.')
-    }
 
     this.attachments.set(container, {
       destroy: () => {

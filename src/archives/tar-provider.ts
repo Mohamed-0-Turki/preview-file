@@ -11,12 +11,16 @@ export class TarProvider implements ArchiveProvider {
   private readonly locations = new Map<string, { offset: number; size: number }>()
   private entries: ArchiveEntry[] | undefined
 
-  constructor(bytes: Uint8Array, format: 'tar' | 'tgz') {
+  constructor(bytes: Uint8Array, format: 'tar' | 'tgz' | 'tbz' | 'txz' | 'tzst') {
     this.bytes = bytes
     this.format = format
   }
 
   get encrypted(): boolean {
+    return false
+  }
+
+  async requiresPassword(): Promise<boolean> {
     return false
   }
 

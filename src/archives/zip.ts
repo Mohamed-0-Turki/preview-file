@@ -1,6 +1,11 @@
-import { ZipReader, Uint8ArrayReader, Uint8ArrayWriter } from '@zip.js/zip.js'
+import { ZipReader, Uint8ArrayReader, Uint8ArrayWriter, configure } from '@zip.js/zip.js'
 import type { Entry } from '@zip.js/zip.js'
 import { ArchivePasswordError, type ArchiveEntry, type ArchiveFormat, type ArchiveProvider } from './types.js'
+
+/* Run zip.js on the main thread. Disabling web workers keeps decryption
+   working even where the worker chunk is unavailable or blocked (dev serves,
+   strict CSP, headless consumers) and removes the worker asset dependency. */
+configure({ useWebWorkers: false })
 
 type ReadableZipEntry = Entry & { directory: false } & {
   getData(writer: Uint8ArrayWriter, options?: { password?: string }): Promise<Uint8Array<ArrayBuffer>>
@@ -25,12 +30,15 @@ function isPasswordError(error: unknown): boolean {
 /**
  * zip provider backed by @zip.js/zip.js.
  *
- * Listing never needs a password — the central directory is not encrypted —
- * so `list()` works on a password-less reader. Reading an encrypted entry
- * without a password throws "File contains encrypted entry"; with a wrong one
- * "Invalid password"; both are mapped to {@link ArchivePasswordError} so the
- * browser can route them to the password prompt. Unlock re-opens the archive
- * with a password after validating it against the first encrypted file member.
+ * Encryption is detected from the (unencrypted) central directory: `list`
+ * never needs a password to enumerate, but on an encrypted archive it stays
+ * gated by {@link requiresPassword}/{@link unlock} so the caller cannot see
+ * member names or sizes before a valid password is accepted. Reading an
+ * encrypted entry without a password throws "File contains encrypted entry";
+ * with a wrong one "Invalid password"; both are mapped to
+ * {@link ArchivePasswordError} so the browser can route them to the prompt.
+ * Unlock re-opens the archive with a password after validating it against the
+ * first encrypted file member.
  */
 export class ZipProvider implements ArchiveProvider {
   readonly format: ArchiveFormat = 'zip'
@@ -50,6 +58,13 @@ export class ZipProvider implements ArchiveProvider {
     return this._encrypted
   }
 
+  /** Detect encryption from the central directory. The enumeration is kept
+   *  private — the caller cannot browse until {@link unlock} succeeds. */
+  async requiresPassword(): Promise<boolean> {
+    await this.ensureEntries()
+    return this._encrypted
+  }
+
   isLocked(): boolean {
     return this._encrypted && this.password === ''
   }
@@ -62,8 +77,8 @@ export class ZipProvider implements ArchiveProvider {
     return reader
   }
 
-  async list(): Promise<ArchiveEntry[]> {
-    if (this.entries) return this.entries
+  private async ensureEntries(): Promise<void> {
+    if (this.entries) return
     this.reader ??= await this.openReader()
 
     const listed: ArchiveEntry[] = []
@@ -85,7 +100,14 @@ export class ZipProvider implements ArchiveProvider {
 
     this._encrypted = listed.some((entry) => entry.encrypted)
     this.entries = listed
-    return listed
+  }
+
+  async list(): Promise<ArchiveEntry[]> {
+    if (this.isLocked()) {
+      throw new ArchivePasswordError('Enter the password to list the archive contents.')
+    }
+    await this.ensureEntries()
+    return this.entries as ArchiveEntry[]
   }
 
   async unlock(password: string): Promise<boolean> {
