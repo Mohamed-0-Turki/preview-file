@@ -39,7 +39,7 @@ debate. Status is tracked in [ADR-0010](adr/0010-testing-strategy.md).
 | Result guards | `src/previewers/__tests__/result-types.test.ts` | Vitest (node) | `is*ResultData` true/false cases (incl. non-Blob falses) |
 | Registries | co-located with the wrappers, e.g. `src/renderers/__tests__/registry.test.ts` | Vitest (node) | register/get/clear, shadowing, fallback `canRender` |
 | Paged-doc controller | `src/renderers/__tests__/docview.test.ts` | Vitest + jsdom | fit calc, zoom anchoring, single-page math — assert on virtual `scrollTop`/metrics, never on pixels |
-| Toolbar | `src/controls/__tests__/toolbar.test.ts` | Vitest + jsdom + `@testing-library/dom` | group presence driven by actions, overflow hiding, refresh sync, focus/tabindex |
+| Toolbar | `src/controls/__tests__/toolbar.test.ts` | Vitest + jsdom + `@testing-library/dom` | group presence driven by actions, rails-wrap on narrow containers, refresh sync, focus/tabindex |
 | `preview()` orchestration | `src/__tests__/preview.test.ts` | Vitest + jsdom | generation guard, clearPreview cleanup, error-card branches, adapter→actions mapping |
 | Full render (PDF/Word/Excel/image) | `e2e/*.spec.ts` (Playwright, owns `playground/`) | Browser | visual smoke, page navigation, download, error card |
 

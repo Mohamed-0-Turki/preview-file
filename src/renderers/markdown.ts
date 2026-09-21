@@ -15,7 +15,8 @@ interface MarkdownAttachment {
 const MARKDOWN_STYLE_ID = 'pf-markdown-styles'
 
 /* GitHub-flavored document styling, scoped under `.pf-markdown` so it can never
-   leak out of the preview stage. */
+   leak out of the preview stage. All colors source from the shared light theme
+   tokens. */
 const MARKDOWN_CSS = `
 .pf-markdown {
   position: absolute;
@@ -23,8 +24,8 @@ const MARKDOWN_CSS = `
   overflow: auto;
   box-sizing: border-box;
   padding: 24px 32px 48px;
-  background: #ffffff;
-  color: #1f2328;
+  background: var(--pf-surface, #ffffff);
+  color: var(--pf-ink, #1f2328);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   font-size: 16px;
   line-height: 1.6;
@@ -35,23 +36,23 @@ const MARKDOWN_CSS = `
   font-weight: 600;
   line-height: 1.25;
 }
-.pf-markdown h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid #d0d7de; }
-.pf-markdown h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid #d0d7de; }
+.pf-markdown h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--pf-line, #d0d7de); }
+.pf-markdown h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--pf-line, #d0d7de); }
 .pf-markdown h3 { font-size: 1.25em; }
 .pf-markdown h4 { font-size: 1em; }
 .pf-markdown h5 { font-size: 0.875em; }
-.pf-markdown h6 { font-size: 0.85em; color: #57606a; }
+.pf-markdown h6 { font-size: 0.85em; color: var(--pf-ink-soft, #57606a); }
 .pf-markdown p, .pf-markdown ul, .pf-markdown ol, .pf-markdown blockquote, .pf-markdown pre, .pf-markdown table, .pf-markdown hr, .pf-markdown dl, .pf-markdown figure, .pf-markdown details {
   margin: 0 0 16px;
 }
-.pf-markdown a { color: #0969da; text-decoration: none; }
+.pf-markdown a { color: var(--pf-accent, #0969da); text-decoration: none; }
 .pf-markdown a:hover { text-decoration: underline; }
 .pf-markdown img { max-width: 100%; box-sizing: border-box; }
 .pf-markdown hr {
   height: 0.25em;
   padding: 0;
   margin: 24px 0;
-  background: #d0d7de;
+  background: var(--pf-line, #d0d7de);
   border: 0;
 }
 .pf-markdown ul, .pf-markdown ol { padding-left: 2em; }
@@ -60,14 +61,14 @@ const MARKDOWN_CSS = `
 .pf-markdown li > p { margin: 0; }
 .pf-markdown blockquote {
   padding: 0 1em;
-  color: #57606a;
-  border-left: 0.25em solid #d0d7de;
+  color: var(--pf-ink-soft, #57606a);
+  border-left: 0.25em solid var(--pf-line, #d0d7de);
 }
 .pf-markdown code {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 85%;
   padding: 0.2em 0.4em;
-  background: rgba(175, 184, 193, 0.2);
+  background: var(--pf-code-bg, rgba(175, 184, 193, 0.2));
   border-radius: 6px;
 }
 .pf-markdown pre {
@@ -75,7 +76,7 @@ const MARKDOWN_CSS = `
   overflow: auto;
   font-size: 85%;
   line-height: 1.45;
-  background: #f6f8fa;
+  background: var(--pf-surface-2, #f6f8fa);
   border-radius: 6px;
 }
 .pf-markdown pre code { background: transparent; padding: 0; font-size: 100%; }
@@ -91,10 +92,10 @@ const MARKDOWN_CSS = `
 }
 .pf-markdown th, .pf-markdown td {
   padding: 6px 13px;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--pf-line, #d0d7de);
 }
-.pf-markdown th { font-weight: 600; background: #f6f8fa; }
-.pf-markdown tr { border-top: 1px solid #d0d7de; }
+.pf-markdown th { font-weight: 600; background: var(--pf-surface-2, #f6f8fa); }
+.pf-markdown tr { border-top: 1px solid var(--pf-line, #d0d7de); }
 .pf-markdown input[type='checkbox'] { margin: 0 0.4em 0 0; vertical-align: -0.15em; }
 .pf-markdown .task-list-item { list-style: none; }
 .pf-markdown .task-list-item ul, .pf-markdown .task-list-item ol { margin-top: 0; }
@@ -154,20 +155,21 @@ async function renderMarkdown(text: string): Promise<string> {
   return marked.parse(text) as string
 }
 
-/* Token type base → GitHub-style color. Unknown types inherit the default. */
+/* Token type base → GitHub-style color pulled from the theme tokens. Unknown
+   types inherit the default. */
 const TOKEN_COLORS: Readonly<Record<string, string>> = {
-  comment: '#6e7781',
-  keyword: '#cf222e',
-  string: '#0a3069',
-  number: '#0550ae',
-  type: '#0550ae',
-  tag: '#0550ae',
-  function: '#8250df',
-  variable: '#953800',
-  boolean: '#cf222e',
-  constant: '#e36209',
-  regexp: '#0a3069',
-  entity: '#8250df',
+  comment: 'var(--pf-token-comment, #6e7781)',
+  keyword: 'var(--pf-token-keyword, #cf222e)',
+  string: 'var(--pf-token-string, #0a3069)',
+  number: 'var(--pf-token-number, #0550ae)',
+  type: 'var(--pf-token-type, #0550ae)',
+  tag: 'var(--pf-token-tag, #0550ae)',
+  function: 'var(--pf-token-function, #8250df)',
+  variable: 'var(--pf-token-variable, #953800)',
+  boolean: 'var(--pf-token-boolean, #cf222e)',
+  constant: 'var(--pf-token-constant, #e36209)',
+  regexp: 'var(--pf-token-regexp, #0a3069)',
+  entity: 'var(--pf-token-entity, #8250df)',
 }
 
 function tokenClass(type: string): string | undefined {
@@ -302,6 +304,7 @@ export class MarkdownRenderer implements Renderer {
         plainFallback.textContent = text
         plainFallback.style.cssText =
           'margin:0;height:100%;overflow:auto;padding:16px;box-sizing:border-box;' +
+          'color:var(--pf-ink, #1f2328);background:var(--pf-surface, #ffffff);' +
           'font:13px/1.5 SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;'
         codeHost.appendChild(plainFallback)
       }

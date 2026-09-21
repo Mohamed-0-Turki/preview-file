@@ -30,7 +30,7 @@ export function createDocStage(container: HTMLElement): DocStage {
   viewport.style.overflow = 'auto'
   viewport.style.overflowX = 'auto'
   viewport.style.overflowY = 'auto'
-  viewport.style.background = DOCVIEW_BACKGROUND
+  viewport.style.background = 'var(--pf-doc-bg, #525659)'
   viewport.style.overscrollBehavior = 'contain'
 
   const outer = document.createElement('div')

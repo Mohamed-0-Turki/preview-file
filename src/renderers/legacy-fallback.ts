@@ -19,13 +19,13 @@ export function renderLegacyFallback(container: HTMLElement, message: string): P
   fallback.style.boxSizing = 'border-box'
   fallback.style.fontFamily = 'system-ui, sans-serif'
   fallback.style.fontSize = '13px'
-  fallback.style.color = '#57606a'
+  fallback.style.color = 'var(--pf-ink-soft, #57606a)'
   fallback.style.textAlign = 'center'
 
   const title = document.createElement('div')
   title.textContent = 'Preview unavailable'
   title.style.fontWeight = '600'
-  title.style.color = '#24292f'
+  title.style.color = 'var(--pf-ink, #1f2328)'
   fallback.appendChild(title)
 
   const detail = document.createElement('div')

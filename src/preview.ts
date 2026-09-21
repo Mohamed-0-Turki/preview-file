@@ -5,7 +5,7 @@ import { getRenderer } from './renderers/index.js'
 import { createSource } from './sources/index.js'
 import type { ResolvedSource, SourceInput } from './sources/index.js'
 import type { PreviewOptions, PreviewResult } from './types.js'
-import { detectType } from './utils/index.js'
+import { detectType, ensureThemeStyles } from './utils/index.js'
 
 const activePreviews = new WeakMap<HTMLElement, () => void>()
 const previewGeneration = new WeakMap<HTMLElement, number>()
@@ -21,17 +21,19 @@ export function clearPreview(container: HTMLElement): void {
 
 function createStateElement(): HTMLElement {
   const el = document.createElement('div')
-  el.style.display = 'flex'
-  el.style.flexDirection = 'column'
-  el.style.alignItems = 'center'
-  el.style.justifyContent = 'center'
-  el.style.gap = '8px'
-  el.style.height = '100%'
-  el.style.boxSizing = 'border-box'
-  el.style.padding = '8px'
-  el.style.fontFamily = 'system-ui, sans-serif'
-  el.style.fontSize = '13px'
-  el.style.textAlign = 'center'
+  const css = el.style
+  css.display = 'flex'
+  css.flexDirection = 'column'
+  css.alignItems = 'center'
+  css.justifyContent = 'center'
+  css.gap = '8px'
+  css.height = '100%'
+  css.boxSizing = 'border-box'
+  css.padding = '8px'
+  css.fontFamily = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+  css.fontSize = '13px'
+  css.textAlign = 'center'
+  css.color = 'var(--pf-ink-soft, #57606a)'
   return el
 }
 
@@ -43,7 +45,7 @@ interface ErrorOptions {
 
 function showError(container: HTMLElement, message: string, options: ErrorOptions = {}): void {
   const errorEl = createStateElement()
-  errorEl.style.color = '#cf222e'
+  errorEl.style.color = 'var(--pf-error, #cf222e)'
 
   const text = document.createElement('div')
   text.textContent = message
@@ -59,12 +61,12 @@ function showError(container: HTMLElement, message: string, options: ErrorOption
     const retryButton = document.createElement('button')
     retryButton.type = 'button'
     retryButton.textContent = 'Try Again'
-    retryButton.style.padding = '2px 10px'
+    retryButton.style.padding = '6px 14px'
     retryButton.style.fontSize = '12px'
-    retryButton.style.border = '1px solid #cf222e'
-    retryButton.style.borderRadius = '6px'
-    retryButton.style.background = '#ffffff'
-    retryButton.style.color = '#cf222e'
+    retryButton.style.border = '1px solid var(--pf-error, #cf222e)'
+    retryButton.style.borderRadius = '7px'
+    retryButton.style.background = 'var(--pf-surface, #ffffff)'
+    retryButton.style.color = 'var(--pf-error, #cf222e)'
     retryButton.style.cursor = 'pointer'
     retryButton.addEventListener('click', () => options.retry?.())
     actionsRow.appendChild(retryButton)
@@ -74,12 +76,12 @@ function showError(container: HTMLElement, message: string, options: ErrorOption
     const downloadButton = document.createElement('button')
     downloadButton.type = 'button'
     downloadButton.textContent = 'Download File'
-    downloadButton.style.padding = '2px 10px'
+    downloadButton.style.padding = '6px 14px'
     downloadButton.style.fontSize = '12px'
-    downloadButton.style.border = '1px solid #57606a'
-    downloadButton.style.borderRadius = '6px'
-    downloadButton.style.background = '#ffffff'
-    downloadButton.style.color = '#57606a'
+    downloadButton.style.border = '1px solid var(--pf-line, #d0d7de)'
+    downloadButton.style.borderRadius = '7px'
+    downloadButton.style.background = 'var(--pf-surface, #ffffff)'
+    downloadButton.style.color = 'var(--pf-ink-soft, #57606a)'
     downloadButton.style.cursor = 'pointer'
     downloadButton.addEventListener('click', () => {
       if (options.downloadName && options.downloadBlob) {
@@ -101,6 +103,7 @@ function buildActions(
   options: PreviewOptions,
   container: HTMLElement,
   resolved: ResolvedSource,
+  mimeType: string,
   adapter: PreviewAdapter | undefined
 ): PreviewActions {
   const canZoom = Boolean(adapter?.canZoom && adapter?.zoomIn && adapter?.zoomOut && adapter?.resetZoom)
@@ -165,6 +168,8 @@ function buildActions(
   }
 
   return {
+    fileName: resolved.name,
+    fileTypeLabel: formatLabel(mimeType, resolved.name),
     canZoom,
     canDownload: adapter?.canDownload ?? true,
     canFullscreen,
@@ -181,12 +186,26 @@ function buildActions(
     fit: adapter?.fit,
     rotate: adapter?.rotate,
     sheets: adapter?.sheets,
-    search: adapter?.search,
     text: adapter?.text,
     singlePage: adapter?.singlePage,
     thumbnails: adapter?.thumbnails,
     viewMode: adapter?.viewMode,
   }
+}
+
+function formatLabel(mimeType: string, name: string): string {
+  if (mimeType.startsWith('application/pdf')) return 'PDF'
+  if (mimeType.startsWith('text/markdown')) return 'Markdown'
+  if (mimeType.startsWith('text/csv')) return 'CSV'
+  if (mimeType.startsWith('text/')) return 'Text'
+  if (mimeType.startsWith('image/')) return 'Image'
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return 'Spreadsheet'
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'Word'
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'Presentation'
+  if (mimeType === 'application/x-7z-compressed') return 'Archive'
+  if (mimeType === 'application/zip') return 'Archive'
+  const last = name.lastIndexOf('.')
+  return last > 0 ? name.slice(last + 1).toUpperCase() : mimeType
 }
 
 export async function preview(
@@ -200,11 +219,12 @@ export async function preview(
 
   clearPreview(container)
 
+  ensureThemeStyles()
+
   const generation = previewGeneration.get(container) ?? 0
   const isCurrent = (): boolean => previewGeneration.get(container) === generation
 
   const loading = createStateElement()
-  loading.style.color = '#6e7781'
   const loadingText = document.createElement('div')
   loadingText.textContent = 'Loading…'
   loading.appendChild(loadingText)
@@ -274,16 +294,20 @@ export async function preview(
     container.style.position = 'relative'
   }
 
-  /* The preview is laid out like a page: a sticky toolbar on top and a stage
-     below it that holds the renderer's content. Keeping the toolbar in normal
-     flow (not an overlay) lets the content scroll beneath it while the bar
-     stays pinned at the top of the preview. */
+  /* The preview is laid out like a page: the chrome (mounted by
+     `mountControls` below) fills the shell and the renderer's stage lives in
+     the middle pane between the top/left/right/bottom chrome regions. Keeping
+     every surface in normal flow (never an overlay) means controllers can
+     never overlap the content — even when a renderer nests a full second
+     preview (e.g. a file opened inside an archive). */
   const shell = document.createElement('div')
+  shell.classList.add('pf-root')
   shell.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;'
   container.appendChild(shell)
 
   const stage = document.createElement('div')
-  stage.style.cssText = 'position:relative;flex:1 1 auto;min-height:0;overflow:hidden;'
+  stage.className = 'pf-stage'
+  stage.style.cssText = 'position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;'
   shell.appendChild(stage)
 
   let adapter: PreviewAdapter | undefined
@@ -301,7 +325,7 @@ export async function preview(
   }
   if (!isCurrent()) return
 
-  const unmountControls = mountControls(shell, buildActions(source, options, container, resolved, adapter))
+  const unmountControls = mountControls(shell, buildActions(source, options, container, resolved, mimeType, adapter))
 
   activePreviews.set(container, () => {
     unmountControls()

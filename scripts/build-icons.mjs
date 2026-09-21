@@ -23,10 +23,10 @@ const generated = join(srcIcons, 'icons.ts')
 
 const ORDER = [
   'zoom-in', 'zoom-out', 'undo-2', 'rotate-ccw', 'rotate-cw',
-  'refresh-ccw', 'chevron-left', 'chevron-right', 'download',
-  'move-horizontal', 'scan', 'ruler', 'file', 'file-stack', 'folder',
-  'maximize', 'ellipsis', 'x', 'copy', 'wrap-text', 'search', 'layout-grid',
-  'lock',
+  'refresh-ccw', 'chevron-left', 'chevron-right', 'chevron-up', 'chevron-down',
+  'arrow-up', 'download', 'move-horizontal', 'scan', 'ruler', 'file', 'file-text',
+  'file-stack', 'folder', 'folder-open', 'panel-left', 'maximize', 'minimize',
+  'ellipsis', 'x', 'copy', 'wrap-text', 'search', 'layout-grid', 'lock', 'sun', 'moon',
 ]
 
 /** Add a decorative `aria-hidden` to the root <svg> tag of a Lucide asset. */

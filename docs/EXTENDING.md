@@ -14,6 +14,7 @@ be packaged, and the full workflow for adding a new format. It complements
 | **Result data guards** | `src/previewers/result-types.ts` | (internal) `is*ResultData(data)` | Type-safe `data` narrowing |
 | **Capabilities** | `src/controls/types.ts` | `PreviewAdapter` fields | New toolbar controls |
 | **Toolbar groups** | `src/controls/toolbar.ts` | (internal) `mountControls` | Rendering of new capabilities |
+| **Tokens** | `src/utils/theme.ts` | `--pf-*` Liquid Glass tokens (light only) | Shared look & feel via `var(--pf-*, fallback)` |
 | **Sources** | `src/sources/source.ts` | `SourceInput` | New input kinds (breaking — see below) |
 | **PDF worker** | `src/pdf-worker.ts` | `setPdfWorkerSrc`, `options.workerSrc` | Bring-your-own worker |
 | **Monaco base URL** | `src/monaco.ts` | `setMonacoBaseUrl`, `options.monaco.baseUrl` | Bring-your-own Monaco AMD build |
@@ -88,8 +89,12 @@ References: [`docs/templates/CustomPreviewer.ts`](templates/CustomPreviewer.ts) 
 3. **Controls (optional)** — to expose toolbar actions, return the relevant adapter
    capabilities; add a group in `toolbar.ts` only if the capability type doesn't exist.
    See [`docs/templates/CustomControlGroup.md`](templates/CustomControlGroup.md).
-4. **Docs** — add a row to the README format table; if the decision is notable, add an ADR.
-5. **Verify** — `npm run typecheck && npm run lint && npm run build`, then smoke-test in
+4. **Tokens (expected)** — source every color from the shared `--pf-*` Liquid Glass
+   tokens (`var(--pf-xxx, fallback)`), never hardcoded hex, so the format matches the
+   rest of the chrome. Tokens are light-only and injected once as `#pf-theme-styles`
+   (see [ADR-0014](adr/0014-viewer-redesign.md)).
+5. **Docs** — add a row to the README format table; if the decision is notable, add an ADR.
+6. **Verify** — `npm run typecheck && npm run lint && npm run build`, then smoke-test in
    the playground.
 
 ### When to build on shared renderer infrastructure
@@ -100,6 +105,10 @@ References: [`docs/templates/CustomPreviewer.ts`](templates/CustomPreviewer.ts) 
 - **Tabular data** (virtualized rows): build on `createVirtualTable` from
   `src/renderers/virtual-table.ts`.
 - **Interactive image** (zoom/pan/loupe): build on `src/renderers/interaction/`.
+- **Archive browsing** (recursive inner-file previews): build on `previewSource` from
+  the `RenderContext` passed into `render()`, and let the archive's own chrome live in
+  a peer flex pane so nested controls can never overlap it (see
+  [ADR-0014](adr/0014-viewer-redesign.md)).
 
 ## Adding capabilities vs. breaking conventions
 

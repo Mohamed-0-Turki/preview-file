@@ -26,7 +26,8 @@ export class TextRenderer implements Renderer {
     pre.style.lineHeight = '1.5'
     pre.style.whiteSpace = 'pre-wrap'
     pre.style.wordWrap = 'break-word'
-    pre.style.color = '#1f2328'
+    pre.style.color = 'var(--pf-ink, #1f2328)'
+    pre.style.background = 'var(--pf-surface, #ffffff)'
     pre.style.height = '100%'
     pre.style.boxSizing = 'border-box'
     pre.style.overflow = 'auto'
@@ -34,7 +35,7 @@ export class TextRenderer implements Renderer {
     if (text.length === 0) {
       const empty = document.createElement('em')
       empty.textContent = 'This file is empty.'
-      empty.style.color = '#6e7781'
+      empty.style.color = 'var(--pf-ink-faint, #6e7781)'
       pre.appendChild(empty)
     } else {
       pre.textContent = text

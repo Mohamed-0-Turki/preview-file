@@ -30,7 +30,7 @@ This document describes how `preview-file` is organized and how the preview pipe
 renderer.render()       src/renderers/*.ts         → DOM + PreviewAdapter (optional)
         │
         ▼
-  mountControls()         src/controls/toolbar.ts    → glass toolbar UI
+  mountControls()         src/controls/toolbar.ts    → multi-side glass chrome + stage (top/left/right/bottom)
         │
         ▼
   activePreviews.set()    src/preview.ts             → teardown is registered
@@ -85,12 +85,13 @@ src/
     legacy-fallback.ts Shared "Preview unavailable" card (Word + Presentation fallbacks)
     docview.ts         Shared "paged document" stage + PagedDocController (PDF + Word + PowerPoint)
     virtual-table.ts   Shared virtualized table (Excel + CSV share it)
-    archive.ts         Archive file-browser renderer (all supported formats) + detect→unlock→browse gate
+    archive.ts         Two-pane archive explorer (tree | nested preview) + detect→unlock→browse gate
     interaction/       Shared pointer/wheel interaction helpers (magnifier, zoomable)
-  controls/            Toolbar, download helper, capability types
-    toolbar.ts         mountControls(): sticky navbar toolbar + overflow menu
+  controls/            Multi-side chrome, download helper, capability types
+    toolbar.ts         mountControls(): .pf-controls top/body/bottom with left+right rails + stage slot
     download.ts        downloadBlob(): Blob → <a download> fallback
     types.ts           PreviewAdapter, PreviewActions, and control group contracts
+  utils/theme.ts       Single .pf-root-scoped --pf-* Liquid Glass token set (light only)
 ```
 
 ## The pipeline, step by step
@@ -168,7 +169,6 @@ interface PreviewAdapter {
   fit?: FitControls           // fitWidth / fitPage / actualSize
   rotate?: RotateControls     // rotation getter, ±90 steps, exact-degree setRotation, reset
   sheets?: SheetNavigation    // tabs, switchSheet
-  search?: SearchControls     // search(query), resultCount, clear
   text?: TextControls         // copy, word-wrap
   singlePage?: SinglePageMode // continuous ↔ single page
   thumbnails?: ThumbnailControls
@@ -190,19 +190,61 @@ interface RotateControls {
 
 A renderer returns `void` (or `undefined`) for a plain, non-interactive view — no toolbar mounts.
 
-### 7. Toolbar — `src/controls/toolbar.ts`
+### 7. Chrome — `src/controls/toolbar.ts`
 
-`preview()` builds a preview **shell** (a flex column filling the container): the toolbar on top, the renderer's content in a **stage** below it. `mountControls(container, actions)` prepends the bar into that shell — it is a sticky navbar, not an overlay:
+`preview()` builds a preview **shell** (a flex column filling the container):
+`.pf-controls` → `.pf-top` / `.pf-body` / `.pf-bottom`. The body is a row of
+`[.pf-rail--left] [.pf-body__middle] [.pf-rail--right]`, and `mountControls`
+moves the renderer's stage — DOM subtree untouched — into the middle slot.
+Every surface is an **in-flow flex sibling** of the stage: nothing is sticky,
+fixed or an overlay, so controllers can never cover the content. This is the
+structural guarantee that lets a file opened *inside an archive* mount its own
+full chrome without overlapping the archive's navigation (each chrome lives in a
+separate flex pane).
 
-- The bar uses `position: sticky; top: 0` inside the preview container, so it stays pinned at the top while the content scrolls beneath it and moves naturally with the page (it is never `fixed` to the browser viewport).
-- The renderer's content lives in the **stage** element below the bar, so the toolbar never covers preview content.
-- Grouped controls: **Pages**, **View**, **Zoom**, **Rotate**, **Sheet**, **Search**, **Text**, **Lens**, **File**. Only groups backed by an existing capability render.
-- **Overflow strategy:** Pages, Zoom, View and Sheet are pinned to the bar; lower-priority groups collapse into a **⋯** menu when the container is narrow, so the bar never wraps. If pinned groups still exceed the width, the bar scrolls horizontally instead of hiding controls.
-- Styling is injected as a single `#pf-glass-styles` `style` element — one `pf-*` classnames namespace, scoped to the container, no shadow DOM or external styles were introduced.
-- Accessibility: segmented controls are `radiogroup` with roving tabindex + arrow keys; toggles expose `aria-pressed`; focus-visible rings everywhere; `prefers-reduced-motion` respected; coarse-pointer targets are ≥ 38 px.
-- **Icons:** local Lucide SVG assets in `src/icons/` (shipped to `dist/icons/`), inlined at runtime as `stroke="currentColor"` markup so each icon inherits the surrounding control styling. `scripts/build-icons.mjs` generates the `src/icons/icons.ts` string module from those assets and copies the raw SVGs (`+ NOTICE.md`) into `dist/` for the published package; icons are rendered at uniform 18px and marked `aria-hidden` (buttons carry their own `aria-label`/`title`).
-- The live zoom `%` indicator (when `zoomPercent` exists) polls the adapter roughly every 300 ms to stay current after wheel/fit interactions; the rotation input syncs from `rotate.rotation` the same way.
-- Fullscreen is a single button in the **View** group; download lives in the **File** group.
+- **Top bar** (`.pf-top`) — file context (icon + ellipsized name + format
+  badge), **Mode** (Preview ⇄ Code), **Text** (copy / word-wrap), a spacer, and
+  **Download** pinned right.
+- **Left rail** — **Sheet** (Excel/CSV) and **Thumbnails**.
+- **Right rail** — **Zoom** (out / % chip / in / actual-size), **Fit** (width /
+  page / actual), **Rotate** (ccw / degree input / cw / reset), **View**
+  (continuous ↔ single + **Fullscreen**), **Lens**.
+- **Bottom bar** (`.pf-bottom`) — **Pages** (prev / page input / total / next).
+  Empty regions get `display: none`, so a PDF pins its pages to the bottom while
+  a text file shows just the top bar.
+- **No overflow menu.** There is no **⋯** collapse; top/bottom bars scroll
+  horizontally and the rails reflow below the stage on narrow surfaces, so every
+  control is always reachable.
+- **Tokens.** All colors come from a single light **Liquid Glass** palette of
+  `--pf-*` CSS custom properties (`src/utils/theme.ts`), injected once per page
+  as `#pf-theme-styles` and scoped to `.pf-root`. No dark palette, no theme
+  API, no `ThemeController`; raw hex is only ever a fallback inside
+  `var(--pf-*, …)`.
+- Styling is injected as one `#pf-glass-styles` `style` element from
+  `mountControls` — a `pf-*` classnames namespace, scoped to the container, no
+  shadow DOM or external styles.
+- **Archives.** The archive renderer (`src/renderers/archive.ts`) is itself a
+  two-pane explorer: the left `.pf-arc-tree` pane owns all archive chrome
+  (back/forward/up/root, breadcrumbs, format badge, virtualized rows, footer
+  counts), and the right `.pf-arc-pane` hosts a nested `preview()` via
+  `RenderContext.previewSource` when a file is opened. On mobile the tree becomes
+  a slide-in drawer and the pane gains an always-visible "show file list" toggle.
+- Accessibility: segmented controls are `radiogroup` with roving tabindex +
+  arrow keys; toggles expose `aria-pressed`; focus-visible rings everywhere;
+  `prefers-reduced-motion` respected; coarse-pointer targets are ≥ 38 px.
+- **Icons:** local Lucide SVG assets in `src/icons/` (shipped to `dist/icons/`),
+  inlined at runtime as `stroke="currentColor"` markup so each icon inherits the
+  surrounding control styling. `scripts/build-icons.mjs` generates the
+  `src/icons/icons.ts` string module from those assets and copies the raw SVGs
+  (`+ NOTICE.md`) into `dist/` for the published package; icons are rendered at
+  uniform 18px and marked `aria-hidden` (buttons carry their own
+  `aria-label`/`title`).
+- The live zoom `%` indicator (when `zoomPercent` exists) polls the adapter
+  roughly every 300 ms to stay current after wheel/fit interactions; the rotation
+  input syncs from `rotate.rotation` the same way; the page input reads
+  `pages.page`/`pages.pageCount`.
+- Fullscreen is a single button in the **View** group; download lives in the
+  **File** group (top bar, pinned right).
 
 Because the toolbar is *derived* from the adapter, adding a new control is: (1) define a capability interface, (2) implement it in a renderer, (3) add a group in `toolbar.ts`.
 
@@ -233,7 +275,7 @@ Adding a format = one table row + one provider case; no MIME special-casing anyw
   so the probe run is reinterpreted as "password required", and for content-encrypted
   ZIP/7z/RAR `list()` stays gated (throws `ArchivePasswordError`) until `unlock()`
   accepts. The renderer therefore renders only a password prompt card for encrypted
-  archives — no rows, breadcrumbs, sizes, search or navigation — and builds the archive
+  archives — no rows, breadcrumbs, sizes or navigation — and builds the archive
   tree only after authentication. `unlock(password)` validates by reading the first
   encrypted entry (ZIP AES first, then ZipCrypto; 7z/rar via 7-Zip extract) and caches
   the password on the provider instance — dropped on `dispose()`, never global.
@@ -247,22 +289,25 @@ Adding a format = one table row + one provider case; no MIME special-casing anyw
   `Module.wasmBinary`, so no `.wasm` asset fetch ever happens — dev servers cannot
   403/404 it and bundlers cannot re-resolve it (`configureArchiveWasm({ locateFile })`
   opts a consumer into hosting the file externally instead).
-- **The Archive renderer** (`src/renderers/archive.ts`) is a self-contained file browser
-  (breadcrumbs, back/forward/root, name search, virtualized rows, per-file download,
-  password prompt). Encrypted archives boot into a full-screen locked prompt and never
-  initialize the tree — no metadata (names, sizes, breadcrumbs, search) is rendered
-  behind the dialog; Cancel keeps the archive locked with a Retry affordance. It
-  recursively previews an inner file via the `RenderContext` that
-  `preview.ts` injects into `render()`, so a `.pdf`/`.md`/`.cs`/`.png` in an archive
-  opens with that format's normal toolbar inside the archive's own preview host. A
-  session counter + rAF-paint guard means a slow inner `previewSource()` resolving after
-  the user navigated away is silently dropped, and `destroy()`/`clearPreview` tear down
-  the nested preview. Since the pipeline is depth-agnostic, archives-of-archives recurse
-  naturally through the same bridge.
+- **The Archive renderer** (`src/renderers/archive.ts`) is a two-pane explorer: the
+  left tree pane owns all archive chrome (back/forward/up/root, breadcrumbs, format
+  badge, virtualized rows with sizes and per-file download, footer counts), and the
+  right pane hosts the nested preview. Encrypted archives boot into a full-screen
+  locked prompt over both panes and never initialize the tree — no metadata (names,
+  sizes, breadcrumbs) is rendered behind the dialog; Cancel keeps the archive locked
+  with a Retry affordance. It recursively previews an inner file via the `RenderContext`
+  that `preview.ts` injects into `render()`, so a `.pdf`/`.md`/`.cs`/`.png` in an
+  archive opens with that format's normal chrome — but the nested chrome is confined
+  to the right pane, a flex sibling of the tree, so the two control surfaces can
+  never overlap (the library's no-overlay invariant). A session counter + rAF-paint
+  guard means a slow inner `previewSource()` resolving after the user navigated away
+  is silently dropped, and `destroy()`/`clearPreview` tear down the nested preview.
+  Since the pipeline is depth-agnostic, archives-of-archives recurse naturally through
+  the same bridge.
 
 ## Rendering philosophy
 
-- **The library never owns the layout.** It renders at 100 % of whatever element the caller provides (auto-set to `position: relative` if static). No modals, no full-page takeover, no injected page chrome — the toolbar lives *inside* the box as a sticky navbar with the renderer's content in a stage below it.
+- **The library never owns the layout.** It renders at 100 % of whatever element the caller provides (auto-set to `position: relative` if static). No modals, no full-page takeover, no injected page chrome — the multi-side chrome (top/left/right/bottom bars) lives *inside* the box as in-flow flex siblings of the stage, so it can never cover content and moves naturally with the page.
 - **Real geometry, not stretch-to-fit.** PDF and Word pages keep their intrinsic size and are paginated/navigated, rather than being squeezed to the preview box; PowerPoint slides keep their native aspect ratio and are fitted as whole slides.
 - **Read-only data view.** Excel/CSV are rendered as tabular data views (virtualized), focused on inspection speed.
 

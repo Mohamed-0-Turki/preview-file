@@ -16,27 +16,32 @@ import { createRenderState } from './render-state.js'
 import { downloadBlob, extensionFrom, mimeFromExtension } from '../utils/index.js'
 import type { RenderContext, Renderer } from './types.js'
 
-const ROW_HEIGHT = 30
+const ROW_HEIGHT = 32
 const STYLE_ID = 'pf-archive-styles'
 
-/* Scoped visual language matched to the rest of the library: GitHub-flavored
-   grays, Lucide inline icons, system UI type. The class is namespaced so the
-   styles can never leak out of the preview stage. */
+/* Scoped Liquid Glass language matched to the rest of the library: GitHub
+   grays, Lucide inline icons, system UI type, rounded segmented controls. The
+   class is namespaced so the styles can never leak out of the preview stage. */
 const ARCHIVE_CSS = `
 .pf-archive {
-  --ink: #1f2328;
-  --ink-soft: #57606a;
-  --ink-faint: #8b949e;
-  --line: #d0d7de;
-  --bar: #f6f8fa;
-  --accent: #0969da;
-  --error: #cf222e;
-  --folder: #9a6700;
-  --file: #59636e;
+  --ink: var(--pf-ink, #172033);
+  --ink-soft: var(--pf-ink-soft, #46505f);
+  --ink-faint: var(--pf-ink-faint, #76808e);
+  --line: var(--pf-line, #dce1e8);
+  --line-end: var(--pf-line-end, #eef1f5);
+  --bar: var(--pf-surface-2, #f6f8fb);
+  --surface: var(--pf-surface, #ffffff);
+  --accent: var(--pf-accent, #2563eb);
+  --accent-tint: var(--pf-accent-tint, rgba(37, 99, 235, 0.1));
+  --error: var(--pf-error, #cf222e);
+  --success: var(--pf-success, #1f883d);
+  --folder: var(--pf-folder, #a16207);
+  --file: var(--pf-file, #59636e);
   box-sizing: border-box;
   color: var(--ink);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: 13px;
+  line-height: 1.4;
 }
 .pf-archive *, .pf-archive *::before, .pf-archive *::after { box-sizing: border-box; }
 .pf-archive .pf-icon svg { width: 100%; height: 100%; display: block; }
@@ -44,110 +49,84 @@ const ARCHIVE_CSS = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 7px;
   background: transparent;
   color: var(--ink-soft);
   font: inherit;
   cursor: pointer;
-  flex: 0 0 26px;
+  flex: 0 0 28px;
 }
-.pf-archive button.pf-ibtn:hover { background: #eaeef2; color: var(--ink); }
+.pf-archive button.pf-ibtn:hover { background: var(--bar); color: var(--ink); }
 .pf-archive button.pf-ibtn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 .pf-archive button.pf-ibtn:focus-visible,
-.pf-archive .pf-abl:focus-visible,
-.pf-archive input.pf-input:focus-visible {
+.pf-archive input.pf-input:focus-visible,
+.pf-archive .pf-arc-abl:focus-visible,
+.pf-archive .pf-arc-row:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
 .pf-archive button.pf-action {
-  height: 28px;
-  padding: 0 14px;
-  border: 1px solid #1f883d;
-  border-radius: 4px;
-  background: #1f883d;
+  height: 30px;
+  padding: 0 16px;
+  border: 1px solid var(--success);
+  border-radius: 8px;
+  background: var(--success);
   color: #ffffff;
-  font-weight: 600;
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 .pf-archive button.pf-action:disabled { opacity: 0.7; cursor: default; }
 .pf-archive button.pf-btn {
-  height: 28px;
-  padding: 0 14px;
+  height: 30px;
+  padding: 0 16px;
   border: 1px solid var(--line);
-  border-radius: 4px;
-  background: #ffffff;
+  border-radius: 8px;
+  background: var(--surface);
   color: var(--ink);
   font: inherit;
   cursor: pointer;
 }
 .pf-archive button.pf-btn:hover { background: var(--bar); }
-.pf-archive .pf-locked {
+
+/* ---- Two-pane explorer layout. The tree pane carries all archive chrome;
+   the nested file preview is confined to the right pane, so controllers can
+   never overlap the archive navigation (see ADR-0014). ---- */
+.pf-arc {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: #ffffff;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+  background: var(--surface);
 }
-.pf-archive .pf-lockcard {
-  width: 100%;
-  max-width: 380px;
-  padding: 20px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 6px 24px rgba(31, 35, 40, 0.08);
-}
-.pf-archive .pf-lockcard .pf-locktitle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-.pf-archive .pf-lockcard .pf-lockhint {
-  color: var(--ink-soft);
-  font-size: 12px;
-  line-height: 1.5;
-  margin: 0 0 10px;
-}
-.pf-archive .pf-lockrow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.pf-archive .pf-lockrow input {
-  flex: 1 1 auto;
+
+.pf-arc-tree {
+  flex: 0 0 264px;
   min-width: 0;
-  height: 28px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  position: relative;
+  z-index: 2;
 }
-.pf-archive .pf-lockmsg {
-  color: var(--error);
-  font-size: 12px;
-  min-height: 16px;
-  margin-top: 6px;
-}
-.pf-archive .pf-row {
+.pf-arc-tree__head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 30px;
-  cursor: pointer;
-  color: var(--ink);
-  border-bottom: 1px solid #eaeef2;
+  gap: 4px;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line-end);
 }
-.pf-archive .pf-row:hover { background: var(--bar); }
-.pf-archive .pf-row .pf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pf-archive .pf-abl {
+.pf-arc-nav { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.pf-arc-crumbs { flex: 1 1 auto; min-width: 40px; display: flex; align-items: center; gap: 2px; overflow: hidden; }
+.pf-arc-abl {
   border: none;
   background: transparent;
   padding: 2px 3px;
@@ -155,12 +134,175 @@ const ARCHIVE_CSS = `
   font: inherit;
   color: var(--accent);
   cursor: pointer;
-  max-width: 180px;
+  flex: 0 1 auto;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pf-archive .pf-abl:hover { text-decoration: underline; }
+.pf-arc-abl:hover { text-decoration: underline; }
+.pf-arc-badge {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+  background: var(--surface);
+}
+.pf-arc-tree__list { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; }
+.pf-arc-trunk { position: relative; width: 100%; }
+.pf-arc-empty { padding: 28px 16px; color: var(--ink-soft); text-align: center; }
+.pf-arc-tree__foot {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  border-top: 1px solid var(--line-end);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pf-arc-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  cursor: pointer;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line-end);
+  outline: none;
+}
+.pf-arc-row:hover { background: var(--bar); }
+.pf-arc-row:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.pf-arc-row--cur { background: var(--accent-tint); box-shadow: inset 2px 0 0 var(--accent); }
+.pf-arc-row--cur:hover { background: var(--accent-tint); }
+.pf-arc-row__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-arc-row__size { flex: 0 0 auto; font-size: 11.5px; color: var(--ink-faint); padding-right: 2px; }
+
+.pf-arc-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.pf-arc-mobilebar {
+  flex: 0 0 auto;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line-end);
+  background: var(--surface);
+}
+.pf-arc-mobilebar__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.pf-arc-canvas { flex: 1 1 auto; min-height: 0; position: relative; background: var(--pf-doc-bg, #e8ecf1); }
+.pf-arc-host { position: absolute; inset: 0; display: none; overflow: hidden; background: var(--surface); }
+.pf-arc-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--ink-faint);
+  text-align: center;
+  padding: 24px;
+}
+.pf-arc-note {
+  margin: auto;
+  max-width: 520px;
+  padding: 16px 20px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  white-space: pre-line;
+  word-wrap: break-word;
+}
+
+/* ---- Password unlock (overlays both panes) ---- */
+.pf-arc-lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--surface);
+  z-index: 5;
+}
+.pf-arc-lockcard {
+  width: 100%;
+  max-width: 380px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+}
+.pf-arc-lockcard .pf-arc-locktitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.pf-arc-lockcard .pf-arc-lockhint {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+.pf-arc-lockrow { display: flex; align-items: center; gap: 6px; }
+.pf-arc-lockrow input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+}
+.pf-arc-lockmsg { color: var(--error); font-size: 12px; min-height: 16px; margin-top: 6px; }
+
+@media (max-width: 767px) {
+  .pf-arc { display: block; }
+  .pf-arc-tree {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(300px, 85vw);
+    transform: translateX(-102%);
+    transition: transform 0.18s ease;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+    border-right: 1px solid var(--line);
+  }
+  .pf-arc-tree--open { transform: none; }
+  .pf-arc-pane { position: absolute; inset: 0; }
+  .pf-arc-mobilebar { display: flex; }
+}
+@media (pointer: coarse) {
+  .pf-archive button.pf-ibtn { width: 38px; height: 38px; flex-basis: 38px; }
+}
 `
 
 function ensureStyles(): void {
@@ -248,149 +390,169 @@ export class ArchiveRenderer implements Renderer {
 
     const root = document.createElement('div')
     root.className = 'pf-archive'
-    root.style.cssText =
-      'position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;background:#ffffff;'
+    root.style.cssText = 'position:absolute;inset:0;overflow:hidden;background:var(--pf-surface, #ffffff);'
 
-    /* ---- Top bar: navigation, breadcrumbs, search ---- */
-    const topbar = document.createElement('div')
-    topbar.style.cssText =
-      `flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:5px 8px;` +
-      `border-bottom:1px solid var(--line);background:var(--bar);min-width:0;`
-    root.appendChild(topbar)
+    const arc = document.createElement('div')
+    arc.className = 'pf-arc'
+    root.appendChild(arc)
+
+    /* ---- Left pane: archive tree (all archive chrome lives here) ---- */
+    const tree = document.createElement('div')
+    tree.className = 'pf-arc-tree'
+    arc.appendChild(tree)
+
+    const treeHead = document.createElement('div')
+    treeHead.className = 'pf-arc-tree__head'
+    tree.appendChild(treeHead)
 
     const navGroup = document.createElement('div')
-    navGroup.style.cssText = 'display:flex;align-items:center;gap:2px;flex:0 0 auto;'
-    topbar.appendChild(navGroup)
+    navGroup.className = 'pf-arc-nav'
+    treeHead.appendChild(navGroup)
 
-    const backBtn = iconButton(LUCIDE['chevron-left'], 'Previous', () => fromHistory(-1))
-    const forwardBtn = iconButton(LUCIDE['chevron-right'], 'Next', () => fromHistory(1))
+    const backBtn = iconButton(LUCIDE['chevron-left'], 'Previous location', () => fromHistory(-1))
+    const forwardBtn = iconButton(LUCIDE['chevron-right'], 'Next location', () => fromHistory(1))
+    const upBtn = iconButton(LUCIDE['arrow-up'], 'Up one level', () => void up())
     const rootBtn = iconButton(LUCIDE['file-stack'], 'Show archive contents', () => nav(''))
-    navGroup.append(backBtn, forwardBtn, rootBtn)
+    navGroup.append(backBtn, forwardBtn, upBtn, rootBtn)
 
     const breadcrumbs = document.createElement('div')
-    breadcrumbs.style.cssText =
-      'display:flex;align-items:center;gap:2px;flex:1 1 auto;min-width:40px;overflow:hidden;'
-    topbar.appendChild(breadcrumbs)
+    breadcrumbs.className = 'pf-arc-crumbs'
+    treeHead.appendChild(breadcrumbs)
 
     const formatBadge = document.createElement('span')
+    formatBadge.className = 'pf-arc-badge'
     formatBadge.textContent = archiveFormatLabel(format)
-    formatBadge.style.cssText =
-      `flex:0 0 auto;font-size:11px;font-weight:600;letter-spacing:.05em;color:var(--ink-soft);` +
-      `border:1px solid var(--line);border-radius:10px;padding:1px 8px;background:#ffffff;`
-    topbar.appendChild(formatBadge)
+    treeHead.appendChild(formatBadge)
 
-    const searchInput = document.createElement('input')
-    searchInput.type = 'search'
-    searchInput.placeholder = 'Filter files…'
-    searchInput.className = 'pf-input'
-    searchInput.setAttribute('aria-label', 'Filter files')
-    searchInput.style.cssText =
-      `width:150px;max-width:30vw;height:26px;padding:0 8px;border:1px solid var(--line);` +
-      `border-radius:4px;font:inherit;color:var(--ink);background:#ffffff;display:none;min-width:0;`
-    const searchToggle = iconButton(LUCIDE['search'], 'Search files', () => {
-      const hidden = searchInput.style.display === 'none'
-      searchInput.style.display = hidden ? '' : 'none'
-      if (hidden) {
-        searchInput.focus()
-        searchInput.select()
-      } else {
-        searchInput.value = ''
-        searchQuery = ''
-        renderDir(currentPath)
-      }
-    })
-    searchInput.addEventListener('input', () => {
-      searchQuery = searchInput.value
-      renderDir(currentPath)
-    })
-    topbar.appendChild(searchToggle)
-    topbar.appendChild(searchInput)
+    const listScroll = document.createElement('div')
+    listScroll.className = 'pf-arc-tree__list'
+    tree.appendChild(listScroll)
 
-    /* ---- Body: list panel or nested preview ---- */
-    const body = document.createElement('div')
-    body.style.cssText = 'position:relative;flex:1 1 auto;min-height:0;'
-    root.appendChild(body)
+    const listBody = document.createElement('div')
+    listBody.className = 'pf-arc-trunk'
+    listBody.setAttribute('role', 'tree')
+    listScroll.appendChild(listBody)
 
-    const listPanel = document.createElement('div')
-    listPanel.style.cssText =
-      'position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;background:#ffffff;'
-    body.appendChild(listPanel)
+    const treeFoot = document.createElement('div')
+    treeFoot.className = 'pf-arc-tree__foot'
+    tree.appendChild(treeFoot)
+    const footTotal = document.createElement('span')
+    treeFoot.appendChild(footTotal)
+    const footHint = document.createElement('span')
+    footHint.textContent = archiveName
+    footHint.title = archiveName
+    treeFoot.appendChild(footHint)
 
-    /* Password unlock view, shown full-screen until a valid password opens the
-       archive. No listing/breadcrumbs/sizes are rendered while it is visible. */
-    const unlockView = document.createElement('div')
-    unlockView.className = 'pf-locked'
-    unlockView.style.display = 'none'
-    body.appendChild(unlockView)
+    /* ---- Right pane: nested preview (or empty-state) stays inside this pane ---- */
+    const pane = document.createElement('div')
+    pane.className = 'pf-arc-pane'
+    arc.appendChild(pane)
 
-    const unlockCard = document.createElement('div')
-    unlockCard.className = 'pf-lockcard'
-    unlockView.appendChild(unlockCard)
+    const mobileBar = document.createElement('div')
+    mobileBar.className = 'pf-arc-mobilebar'
+    pane.appendChild(mobileBar)
+    const drawerToggle = document.createElement('button')
+    drawerToggle.type = 'button'
+    drawerToggle.className = 'pf-ibtn'
+    drawerToggle.title = 'Show file list'
+    drawerToggle.setAttribute('aria-label', 'Show file list')
+    drawerToggle.setAttribute('aria-expanded', 'false')
+    drawerToggle.appendChild(iconEl(LUCIDE['panel-left'], 15))
+    drawerToggle.addEventListener('click', () => setDrawer(!isDrawerOpen))
+    mobileBar.appendChild(drawerToggle)
+    const mobileTitle = document.createElement('span')
+    mobileTitle.className = 'pf-arc-mobilebar__title'
+    mobileTitle.textContent = archiveName
+    mobileTitle.title = archiveName
+    mobileBar.appendChild(mobileTitle)
 
-    const unlockTitle = document.createElement('div')
-    unlockTitle.className = 'pf-locktitle'
-    unlockTitle.appendChild(iconEl(LUCIDE['lock'], 15, 'var(--folder)'))
-    const unlockTitleText = document.createElement('span')
-    unlockTitleText.textContent = 'Password-protected archive'
-    unlockTitle.appendChild(unlockTitleText)
-    unlockCard.appendChild(unlockTitle)
+    const canvas = document.createElement('div')
+    canvas.className = 'pf-arc-canvas'
+    pane.appendChild(canvas)
 
-    const unlockHint = document.createElement('p')
-    unlockHint.className = 'pf-lockhint'
-    unlockCard.appendChild(unlockHint)
+    const previewHost = document.createElement('div')
+    previewHost.className = 'pf-arc-host'
+    canvas.appendChild(previewHost)
 
-    const unlockRow = document.createElement('div')
-    unlockRow.className = 'pf-lockrow'
-    const unlockInput = document.createElement('input')
-    unlockInput.type = 'password'
-    unlockInput.placeholder = 'Enter password'
-    unlockInput.className = 'pf-input'
-    unlockInput.setAttribute('aria-label', 'Archive password')
-    unlockInput.style.cssText =
-      `flex:1 1 auto;min-width:0;height:28px;padding:0 8px;border:1px solid var(--line);` +
-      `border-radius:4px;font:inherit;color:var(--ink);background:#ffffff;`
+    const placeholder = document.createElement('div')
+    placeholder.className = 'pf-arc-placeholder'
+    const placeholderIcon = document.createElement('span')
+    placeholderIcon.className = 'pf-icon'
+    placeholderIcon.style.cssText = 'display:inline-flex;width:40px;height:40px;color:var(--ink-faint);'
+    placeholderIcon.innerHTML = LUCIDE['file-stack']
+    placeholder.appendChild(placeholderIcon)
+    const placeholderText = document.createElement('div')
+    placeholderText.textContent = 'Select a file to preview its contents.'
+    placeholder.append(placeholderIcon, placeholderText)
+    canvas.appendChild(placeholder)
+
+    /* ---- Password unlock view, shown over both panes until a valid password
+       opens the archive. No listing/crumbs are usable while it is visible. ---- */
+    const lockView = document.createElement('div')
+    lockView.className = 'pf-arc-lock'
+    lockView.style.display = 'none'
+    root.appendChild(lockView)
+
+    const lockCard = document.createElement('div')
+    lockCard.className = 'pf-arc-lockcard'
+    lockView.appendChild(lockCard)
+
+    const lockTitle = document.createElement('div')
+    lockTitle.className = 'pf-arc-locktitle'
+    lockTitle.appendChild(iconEl(LUCIDE['lock'], 15, 'var(--folder)'))
+    const lockTitleText = document.createElement('span')
+    lockTitleText.textContent = 'Password-protected archive'
+    lockTitle.appendChild(lockTitleText)
+    lockCard.appendChild(lockTitle)
+
+    const lockHint = document.createElement('p')
+    lockHint.className = 'pf-arc-lockhint'
+    lockCard.appendChild(lockHint)
+
+    const lockRow = document.createElement('div')
+    lockRow.className = 'pf-arc-lockrow'
+    const lockInput = document.createElement('input')
+    lockInput.type = 'password'
+    lockInput.placeholder = 'Enter password'
+    lockInput.className = 'pf-input'
+    lockInput.setAttribute('aria-label', 'Archive password')
     const unlockBtn = document.createElement('button')
     unlockBtn.type = 'button'
     unlockBtn.textContent = 'Open Archive'
     unlockBtn.className = 'pf-action'
     unlockBtn.addEventListener('click', () => void submitUnlock())
-    unlockInput.addEventListener('keydown', (event) => {
+    lockInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') void submitUnlock()
     })
     const cancelBtn = document.createElement('button')
     cancelBtn.type = 'button'
     cancelBtn.textContent = 'Cancel'
     cancelBtn.className = 'pf-btn'
-    unlockRow.append(unlockInput, unlockBtn, cancelBtn)
-    unlockCard.appendChild(unlockRow)
+    lockRow.append(lockInput, unlockBtn, cancelBtn)
+    lockCard.appendChild(lockRow)
 
-    const unlockMessage = document.createElement('div')
-    unlockMessage.className = 'pf-lockmsg'
-    unlockCard.appendChild(unlockMessage)
-
-    const listScroll = document.createElement('div')
-    listScroll.style.cssText = 'position:relative;flex:1 1 auto;overflow:auto;background:#ffffff;'
-    listPanel.appendChild(listScroll)
-
-    const listBody = document.createElement('div')
-    listBody.style.cssText = 'position:relative;width:100%;'
-    listScroll.appendChild(listBody)
-
-    const previewHost = document.createElement('div')
-    previewHost.style.cssText = 'position:absolute;inset:0;display:none;overflow:hidden;background:#ffffff;'
-    body.appendChild(previewHost)
+    const lockMessage = document.createElement('div')
+    lockMessage.className = 'pf-arc-lockmsg'
+    lockCard.appendChild(lockMessage)
 
     container.appendChild(root)
 
     /* ---- State ---- */
     let archiveEntries: ArchiveEntry[] = []
+    let browseDir = ''
     let currentPath = ''
+    let selectedPath = ''
     let history: string[] = ['']
     let historyIndex = 0
-    let searchQuery = ''
     let session = 0
     let frame = 0
     let pendingOpenEntry: ArchiveEntry | undefined
+    let lockMode: 'browser' | 'locked' = 'browser'
+    let isDrawerOpen = false
+
+    const mobileQuery =
+      typeof window !== 'undefined' && 'matchMedia' in window ? window.matchMedia('(max-width: 767px)') : undefined
+    const isMobile = (): boolean => Boolean(mobileQuery && mobileQuery.matches)
 
     const entryFor = (path: string): ArchiveEntry | undefined =>
       archiveEntries.find((entry) => entry.path === path)
@@ -400,6 +562,11 @@ export class ArchiveRenderer implements Renderer {
       return archiveEntries.filter(
         (entry) => entry.path.startsWith(prefix) && !entry.path.slice(prefix.length).includes('/')
       )
+    }
+
+    const parentOf = (path: string): string => {
+      const index = path.lastIndexOf('/')
+      return index === -1 ? '' : path.slice(0, index)
     }
 
     const compareEntries = (a: ArchiveEntry, b: ArchiveEntry): number => {
@@ -413,6 +580,8 @@ export class ArchiveRenderer implements Renderer {
     const updateNavState = (): void => {
       backBtn.disabled = historyIndex <= 0
       forwardBtn.disabled = historyIndex >= history.length - 1
+      upBtn.disabled = currentPath === ''
+      rootBtn.disabled = currentPath === ''
     }
 
     const nav = (path: string): void => {
@@ -421,16 +590,23 @@ export class ArchiveRenderer implements Renderer {
         applyPath(path)
         return
       }
+      if (isMobile()) setDrawer(false)
       history = history.slice(0, historyIndex + 1)
       history.push(path)
       historyIndex += 1
       applyPath(path)
     }
 
+    const up = (): void => {
+      if (lockMode !== 'browser') return
+      nav(parentOf(currentPath))
+    }
+
     const fromHistory = (step: number): void => {
       if (lockMode !== 'browser') return
       const next = historyIndex + step
       if (next < 0 || next >= history.length) return
+      if (isMobile()) setDrawer(false)
       historyIndex = next
       applyPath(history[next] ?? '')
     }
@@ -442,12 +618,24 @@ export class ArchiveRenderer implements Renderer {
       updateNavState()
       const entry = entryFor(path)
       if (entry && entry.kind !== 'directory') {
+        selectedPath = path
+        browseDir = parentOf(path)
+        renderBreadcrumbs(path)
+        renderDir(browseDir)
         void loadEntry(entry)
       } else {
+        selectedPath = path
+        browseDir = path
         exitFileView()
         renderBreadcrumbs(path)
         renderDir(path)
       }
+    }
+
+    const setDrawer = (open: boolean): void => {
+      isDrawerOpen = open
+      tree.classList.toggle('pf-arc-tree--open', open)
+      drawerToggle.setAttribute('aria-expanded', String(open))
     }
 
     /* ---- Directory listing ---- */
@@ -463,24 +651,22 @@ export class ArchiveRenderer implements Renderer {
       listBody.replaceChildren()
       listBody.style.height = 'auto'
       const empty = document.createElement('div')
+      empty.className = 'pf-arc-empty'
       empty.textContent = message
-      empty.style.cssText = 'padding:28px;color:var(--ink-soft);text-align:center;'
       listBody.appendChild(empty)
     }
 
     const renderDir = (dirPath: string): void => {
-      const query = searchQuery.trim().toLowerCase()
-      let children = childrenOf(dirPath)
-      if (query) children = children.filter((entry) => entry.name.toLowerCase().includes(query))
+      const children = childrenOf(dirPath)
       children.sort(compareEntries)
+      renderTreeFoot(children)
 
-      const parentHasChildren = archiveEntries.length > 0
-      if (!parentHasChildren) {
+      if (archiveEntries.length === 0) {
         renderEmptyList('This archive is empty.')
         return
       }
       if (children.length === 0) {
-        renderEmptyList(query ? 'No matching files.' : 'This folder is empty.')
+        renderEmptyList('This folder is empty.')
         return
       }
 
@@ -509,41 +695,81 @@ export class ArchiveRenderer implements Renderer {
 
       listScroll.onscroll = schedule
       paint()
+      scrollSelectedIntoView(children)
+    }
+
+    const renderTreeFoot = (children: ArchiveEntry[]): void => {
+      const folders = children.filter((entry) => entry.kind === 'directory').length
+      const files = children.length - folders
+      footTotal.textContent =
+        children.length === 0 ? 'Empty' : `${folders} ${folders === 1 ? 'folder' : 'folders'} · ${files} ${files === 1 ? 'file' : 'files'}`
+    }
+
+    const scrollSelectedIntoView = (children: ArchiveEntry[]): void => {
+      const index = children.findIndex((entry) => entry.path === selectedPath)
+      if (index < 0) return
+      const top = index * ROW_HEIGHT
+      const bottom = top + ROW_HEIGHT
+      if (top < listScroll.scrollTop) {
+        listScroll.scrollTop = top
+      } else if (bottom > listScroll.scrollTop + listScroll.clientHeight) {
+        listScroll.scrollTop = bottom - listScroll.clientHeight
+      }
     }
 
     const makeRow = (entry: ArchiveEntry, index: number): HTMLElement => {
       const row = document.createElement('div')
-      row.className = 'pf-row'
+      row.className = 'pf-arc-row'
       row.style.top = `${index * ROW_HEIGHT}px`
       row.style.fontSize = '13px'
+      row.setAttribute('role', 'treeitem')
+      row.tabIndex = 0
 
       const isDir = entry.kind === 'directory'
-      const icon = isDir ? LUCIDE['folder'] : LUCIDE['file']
+      const isCurrentDir = isDir && entry.path === currentPath
+      const isSelected = entry.path === selectedPath
+      if (isSelected) {
+        row.classList.add('pf-arc-row--cur')
+        row.setAttribute('aria-current', 'true')
+      }
+      row.setAttribute('aria-selected', String(isSelected))
+
+      const icon = isDir ? (isCurrentDir ? LUCIDE['folder-open'] : LUCIDE['folder']) : LUCIDE['file']
       const color = isDir ? 'var(--folder)' : entry.kind === 'file' ? 'var(--file)' : 'var(--ink-faint)'
       row.appendChild(iconEl(icon, 15, color))
 
       const name = document.createElement('div')
-      name.className = 'pf-name'
-      name.style.cssText = 'flex:1 1 auto;min-width:0;padding-right:8px;'
+      name.className = 'pf-arc-row__name'
       name.textContent = entry.kind === 'symlink' || entry.kind === 'hardlink' ? `${entry.name} →` : entry.name
       name.title = entry.path
       row.appendChild(name)
 
-      const size = document.createElement('div')
-      size.style.cssText = 'flex:0 0 auto;color:var(--ink-soft);font-size:12px;padding-right:4px;'
-      size.textContent = isDir ? '' : formatSize(entry.size)
-      row.appendChild(size)
+      if (!isDir) {
+        const size = document.createElement('div')
+        size.className = 'pf-arc-row__size'
+        size.textContent = formatSize(entry.size)
+        row.appendChild(size)
+      }
 
       if (entry.kind === 'file') {
         const download = iconButton(LUCIDE['download'], `Download ${entry.name}`, () => {
           void downloadEntry(entry)
         })
-        download.style.marginLeft = '4px'
         download.addEventListener('click', (event) => event.stopPropagation())
         row.appendChild(download)
       }
 
-      row.addEventListener('click', () => nav(entry.path))
+      const open = (): void => {
+        nav(entry.path)
+        row.blur()
+      }
+      row.addEventListener('click', open)
+      row.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          open()
+        }
+      })
 
       return row
     }
@@ -562,8 +788,7 @@ export class ArchiveRenderer implements Renderer {
       context.clearPreview(previewHost)
       previewHost.replaceChildren()
       previewHost.style.display = 'flex'
-      listPanel.style.display = 'none'
-      renderBreadcrumbs(entry.path)
+      placeholder.style.display = 'none'
 
       const file = makeNestedFile(entry, bytes)
       const mySession = session
@@ -578,13 +803,10 @@ export class ArchiveRenderer implements Renderer {
       context.clearPreview(previewHost)
       previewHost.replaceChildren()
       previewHost.style.display = 'flex'
-      listPanel.style.display = 'none'
-      renderBreadcrumbs(currentPath)
+      placeholder.style.display = 'none'
 
       const note = document.createElement('div')
-      note.style.cssText =
-        `margin:auto;max-width:520px;padding:16px 20px;color:var(--ink-soft);` +
-        `font-size:13px;line-height:1.5;text-align:center;white-space:pre-line;word-wrap:break-word;`
+      note.className = 'pf-arc-note'
       note.textContent = text
       previewHost.appendChild(note)
     }
@@ -593,7 +815,7 @@ export class ArchiveRenderer implements Renderer {
       session += 1
       context.clearPreview(previewHost)
       previewHost.style.display = 'none'
-      listPanel.style.display = 'flex'
+      placeholder.style.display = 'flex'
     }
 
     const loadEntry = async (entry: ArchiveEntry): Promise<void> => {
@@ -653,7 +875,7 @@ export class ArchiveRenderer implements Renderer {
       }
       const button = document.createElement('button')
       button.type = 'button'
-      button.className = 'pf-abl'
+      button.className = 'pf-arc-abl'
       button.textContent = label
       button.title = title
       button.addEventListener('click', () => nav(target))
@@ -686,18 +908,16 @@ export class ArchiveRenderer implements Renderer {
     }
 
     /* ---- Password unlock ---- */
-    /* While locked the browser shows only the prompt card: no breadcrumbs,
-       sizes or rows are rendered, and navigation is inert. `requiresPassword`
-       is called during boot, so an encrypted archive never lists first. */
-    let lockMode: 'browser' | 'locked' = 'browser'
-
-    const setTopbarChrome = (enabled: boolean): void => {
+    /* While locked the explorer shows only the prompt card: no crumbs, sizes
+       or rows are offered, and navigation is inert. `requiresPassword` is
+       called during boot, so an encrypted archive never lists first. */
+    const setTreeChrome = (enabled: boolean): void => {
       breadcrumbs.style.display = enabled ? '' : 'none'
       formatBadge.style.display = enabled ? '' : 'none'
-      searchToggle.style.display = enabled ? '' : 'none'
-      searchInput.style.display = enabled ? '' : 'none'
+      mobileBar.style.display = enabled ? '' : 'none'
       backBtn.disabled = enabled ? historyIndex <= 0 : true
       forwardBtn.disabled = enabled ? historyIndex >= history.length - 1 : true
+      upBtn.disabled = !enabled
       rootBtn.disabled = !enabled
     }
 
@@ -705,19 +925,19 @@ export class ArchiveRenderer implements Renderer {
       lockMode = 'locked'
       session += 1
       context.clearPreview(previewHost)
-      unlockView.replaceChildren()
-      unlockView.appendChild(unlockCard)
-      unlockHint.textContent = message
-      unlockInput.value = ''
+      previewHost.style.display = 'none'
+      placeholder.style.display = 'flex'
+      lockView.replaceChildren()
+      lockView.appendChild(lockCard)
+      lockHint.textContent = message
+      lockInput.value = ''
       unlockBtn.disabled = false
       unlockBtn.textContent = 'Open Archive'
       cancelBtn.style.display = ''
-      unlockMessage.textContent = ''
-      unlockView.style.display = 'flex'
-      previewHost.style.display = 'none'
-      listPanel.style.display = 'none'
-      setTopbarChrome(false)
-      unlockInput.focus()
+      lockMessage.textContent = ''
+      lockView.style.display = 'flex'
+      setTreeChrome(false)
+      lockInput.focus()
     }
 
     const closeLockedView = async (): Promise<void> => {
@@ -731,29 +951,28 @@ export class ArchiveRenderer implements Renderer {
         showLockedView(`Could not open archive: ${(error as Error).message}`)
         return
       }
-      unlockView.style.display = 'none'
-      listPanel.style.display = 'flex'
-      setTopbarChrome(true)
+      lockView.style.display = 'none'
+      setTreeChrome(true)
       lockMode = 'browser'
       updateNavState()
       renderBreadcrumbs(currentPath)
-      renderDir(currentPath)
+      renderDir(browseDir)
     }
 
     const cancelUnlock = (): void => {
-      unlockInput.value = ''
+      lockInput.value = ''
       unlockBtn.textContent = 'Try Again'
       cancelBtn.style.display = 'none'
-      unlockMessage.textContent = ''
-      unlockHint.textContent = 'Archive remains locked. A password is required to view its contents.'
-      unlockInput.blur()
+      lockMessage.textContent = ''
+      lockHint.textContent = 'Archive remains locked. A password is required to view its contents.'
+      lockInput.blur()
     }
     cancelBtn.addEventListener('click', cancelUnlock)
 
     const submitUnlock = async (): Promise<void> => {
-      const password = unlockInput.value
+      const password = lockInput.value
       if (!password) {
-        unlockMessage.textContent = 'Please enter a password.'
+        lockMessage.textContent = 'Please enter a password.'
         return
       }
       unlockBtn.disabled = true
@@ -762,19 +981,17 @@ export class ArchiveRenderer implements Renderer {
         const accepted = await provider.unlock(password)
         if (session !== mySession) return
         if (accepted) {
-          unlockMessage.textContent = ''
+          lockMessage.textContent = ''
           const target = pendingOpenEntry
           pendingOpenEntry = undefined
+          await closeLockedView()
           if (target) {
-            await closeLockedView()
             void loadEntry(target)
-          } else {
-            await closeLockedView()
           }
         } else {
           unlockBtn.textContent = 'Try Again'
-          unlockMessage.textContent = 'Incorrect password. Try again.'
-          unlockInput.select()
+          lockMessage.textContent = 'Incorrect password. Try again.'
+          lockInput.select()
         }
       } finally {
         if (session === mySession) unlockBtn.disabled = false
@@ -810,7 +1027,7 @@ export class ArchiveRenderer implements Renderer {
     if (session !== initialSession) return {}
 
     updateNavState()
-    setTopbarChrome(true)
+    setTreeChrome(true)
     renderBreadcrumbs('')
     renderDir('')
 

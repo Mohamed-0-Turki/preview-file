@@ -17,7 +17,6 @@ export type {
   PreviewActions,
   PreviewAdapter,
   RotateControls,
-  SearchControls,
   SheetNavigation,
   SinglePageMode,
   TextControls,

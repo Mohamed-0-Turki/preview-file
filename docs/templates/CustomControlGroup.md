@@ -20,7 +20,6 @@ interface PreviewAdapter {
   fit?: FitControls
   rotate?: RotateControls
   sheets?: SheetNavigation
-  search?: SearchControls
   text?: TextControls
   singlePage?: SinglePageMode
   thumbnails?: ThumbnailControls
@@ -38,7 +37,7 @@ interface PreviewActions {
 ### 1. Define the capability interface — `src/controls/types.ts`
 
 Add a small interface describing the state and methods the control needs. Existing
-examples: `PageNavigation`, `SearchControls`, `TextControls`, `LensAdapter`.
+examples: `PageNavigation`, `TextControls`, `LensAdapter`.
 
 ```ts
 /** TEMPLATE: a capability describing a "word count" control. */
@@ -74,21 +73,23 @@ return {
 ### 3. Render it in the toolbar — `src/controls/toolbar.ts`
 
 Add a control group. Follow the existing structure: build groups guarded by their
-capability, append buttons into a `row`, and honour the overflow system (pin important
-groups, let minor ones collapse into the “⋯” menu).
+capability and append buttons into a row. The chrome has no overflow **⋯** menu:
+top bar (`.pf-top`) is for single actions and the file context, left/right rails
+(`.pf-rail--left` / `.pf-rail--right`) hold grouped tools, and the bottom bar
+(`.pf-bottom`) holds live-state pagination (Pages). Empty regions are
+`display: none`, so pick the surface that matches your control's lifetime.
 
 Layout of `mountControls` today, roughly:
 
 1. group builders (`makeButton`, segmented controls as `radiogroup`s)
-2. `addGroup(key, label, cluster, pinned, build)` registers a group; `pinned: true`
-   keeps it on the bar, `false` lets it collapse into the “⋯” overflow menu on narrow
-   containers (`groupRefs` + `popable`
+2. `buildRail`/`buildBar` helpers append each group into its flex slot
+   (`.pf-top` → body rails → `.pf-bottom`); `preview.ts` moves the renderer's
+   stage into `.pf-body__middle` via the `stageHost` returned by `buildToolbar`
 3. `refresh()` re-syncs live values (zoom %, rotation, current page)
 
-Add your group in the same style and choose `pinned` deliberately (page-level state like
-zoom/view/sheet is pinned; secondary actions go to the overflow). Because `refresh()`
-re-reads state, live capabilities (zoom %, count, page) stay current with the polling
-already in place.
+Add your group in the same style. Because `refresh()` re-reads state, live
+capabilities (zoom %, count, page) stay current with the polling already in
+place.
 
 ### 4. Implement the capability in a renderer
 
@@ -110,8 +111,8 @@ That's it — the toolbar picks the group up automatically. Re-expose nothing el
 ## Verification
 
 - `npm run typecheck && npm run lint && npm run build`
-- Smoke-test the affected renderer in the playground, including the narrow-container
-  overflow behaviour of the new group.
+- Smoke-test the affected renderer in the playground, including narrow-container
+  rails-wrap behaviour of the new group.
 
 ## Design rules
 

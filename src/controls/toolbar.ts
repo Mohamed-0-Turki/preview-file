@@ -4,22 +4,34 @@ import { ICONS as LUCIDE } from '../icons/icons.js'
 /*
  * The preview control surface.
  *
- * Design: a sticky "navbar" bar pinned to the top of the preview area. Every
- * preview type gets the same visual language (bar, labeled groups, segmented
- * controls, buttons, inputs) and only the groups its adapter declares
- * capabilities for are rendered.
+ * Design: a Liquid Glass chrome distributed around the content — every control
+ * is always visible and intentionally placed on the side where it belongs:
  *
- * - The bar is part of the preview layout (never an overlay): it sits at the
- *   top of the preview container with `position: sticky`, so it stays visible
- *   while the preview content scrolls beneath it and moves naturally with the
- *   page. It is not fixed to the browser viewport.
- * - Groups are labeled clusters (Mode / Pages / Zoom / View / Sheet / Search /
- *   Text / Lens / File) separated by hairline dividers.
- * - Pinned groups (Mode, Pages, Zoom, View, Sheet) stay on the bar; everything
- *   else collapses into a glass overflow menu ("More") on narrow surfaces,
- *   keeping the bar responsive without wrapping or overflowing.
+ *   - Top bar (.pf-top): the document context — file info + format badge on the
+ *     left, view-mode / text actions beside it, and the download action on the
+ *     right. Pinned document-level actions.
+ *   - Left rail (.pf-rail--left): sheet navigation (spreadsheets) and the
+ *     thumbnail/sidebar toggle — things that sit next to the content.
+ *   - Right rail (.pf-rail--right): zoom, fit, rotate, single/continuous and
+ *     fullscreen plus the image lens — everything that changes how the content
+ *     is seen.
+ *   - Bottom bar (.pf-bottom): page navigation (prev / page input / total / next).
+ *
+ * Every surface is in normal flow — chrome is never an overlay and never uses
+ * sticky positioning or z-index. Content scrolls inside the stage that sits
+ * between the rails, and renderers can nest a full second preview (e.g. a file
+ * opened inside an archive) without any two control surfaces ever occupying
+ * the same space.
+ *
+ * - The chrome renders only the groups the adapter's capabilities declare, so
+ *   each preview gets exactly the controls it needs.
+ * - Groups are labeled clusters separated by hairline dividers; on narrow
+ *   surfaces the rails reflow beneath the stage as strips so no control is
+ *   ever hidden behind an overflow menu.
  * - Icons are Lucide SVGs (24px grid, 2px stroke, round caps, currentColor,
- *   see src/icons/) rendered inline at 18px so they inherit the control style.
+ *   see src/icons/) rendered inline so they inherit the control style.
+ * - All colors come from the shared design tokens (see src/utils/theme.ts) —
+ *   a single Liquid Glass light system; there is no theme switching.
  */
 
 /* Local aliases from the toolbar's semantic action names to the Lucide assets
@@ -34,7 +46,8 @@ const ICONS = {
   fitWidth: LUCIDE['move-horizontal'],
   fitPage: LUCIDE['scan'],
   actualSize: LUCIDE['ruler'],
-  fullscreen: LUCIDE['maximize'],
+  maximize: LUCIDE['maximize'],
+  minimize: LUCIDE['minimize'],
   prevPage: LUCIDE['chevron-left'],
   nextPage: LUCIDE['chevron-right'],
   singlePage: LUCIDE['file'],
@@ -44,29 +57,20 @@ const ICONS = {
   rotateCcw: LUCIDE['rotate-ccw'],
   copy: LUCIDE['copy'],
   wrap: LUCIDE['wrap-text'],
-  search: LUCIDE['search'],
-  clear: LUCIDE['x'],
   thumbnails: LUCIDE['layout-grid'],
-  more: LUCIDE['ellipsis'],
+  file: LUCIDE['file-text'],
 }
 
 const GLASS_STYLE_ID = 'pf-glass-styles'
 
 const GLASS_CSS = `
 .pf-controls {
-  --pf-ink: #1a2233;
-  --pf-ink-soft: rgba(30, 41, 59, 0.7);
-  --pf-ink-faint: rgba(30, 41, 59, 0.5);
-  --pf-accent: #1d4ed8;
-  --pf-line: rgba(15, 23, 42, 0.14);
-  position: sticky;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 30;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  color: var(--pf-ink);
+  color: var(--pf-ink, #172033);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: 12px;
   -webkit-font-smoothing: antialiased;
@@ -84,34 +88,78 @@ const GLASS_CSS = `
   display: block;
   flex: none;
 }
-.pf-bar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 2px;
-  width: 100%;
-  padding: 6px 10px;
-  border-radius: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.86));
+/* Chrome regions: translucent glass surfaces that blur what scrolls behind
+   them, hairline borders, soft shadows. All in normal flow — never overlay. */
+.pf-top,
+.pf-bottom,
+.pf-rail {
+  background: var(--pf-glass, rgba(250, 251, 253, 0.72));
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
-  box-shadow: 0 1px 3px rgba(2, 6, 23, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.pf-top,
+.pf-bottom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding: 6px 10px;
   overflow-x: auto;
   scrollbar-width: none;
+  box-shadow: var(--pf-glass-shadow, 0 1px 2px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8));
   animation: pf-in 0.18s ease-out;
 }
-.pf-bar::-webkit-scrollbar {
-  display: none;
+.pf-top {
+  border-bottom: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
 }
-/* When groups overflow the bar, keep pinned controls reachable from the left
-   edge instead of centering (centered overflow clips both sides). */
-.pf-bar--left {
-  justify-content: flex-start;
+.pf-bottom {
+  border-top: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
+  padding: 4px 10px;
+}
+.pf-top::-webkit-scrollbar,
+.pf-bottom::-webkit-scrollbar {
+  display: none;
 }
 @keyframes pf-in {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: none; }
+}
+.pf-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+.pf-body__middle {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  position: relative;
+}
+.pf-rail {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 6px;
+  min-width: 0;
+}
+.pf-rail--left {
+  border-right: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
+}
+.pf-rail--right {
+  border-left: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
+}
+.pf-rail .pf-group {
+  align-items: center;
+  width: 100%;
+}
+.pf-rail .pf-row {
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
 }
 .pf-group {
   display: flex;
@@ -127,20 +175,66 @@ const GLASS_CSS = `
   letter-spacing: 0.09em;
   text-transform: uppercase;
   line-height: 1;
-  color: var(--pf-ink-faint);
+  color: var(--pf-ink-faint, #76808e);
   user-select: none;
   white-space: nowrap;
 }
+.pf-rail .pf-group__label {
+  text-align: center;
+  width: 100%;
+}
+.pf-group__label:empty { display: none; }
 .pf-row {
   display: flex;
   align-items: center;
   gap: 2px;
 }
+.pf-spacer {
+  flex: 1 1 auto;
+  min-width: 6px;
+}
 .pf-divider {
   width: 1px;
   align-self: stretch;
   margin: 10px 3px;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.16), rgba(15, 23, 42, 0));
+  background: linear-gradient(180deg, transparent, var(--pf-glass-line, rgba(15, 23, 42, 0.12)), transparent);
+}
+.pf-rail .pf-divider {
+  width: auto;
+  height: 1px;
+  align-self: stretch;
+  margin: 2px 0;
+  background: linear-gradient(90deg, transparent, var(--pf-glass-line-strong, rgba(15, 23, 42, 0.12)), transparent);
+}
+/* File context: icon + ellipsized name + format badge. */
+.pf-fileinfo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 4px;
+  max-width: 260px;
+}
+.pf-fileinfo__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: var(--pf-ink, #172033);
+}
+.pf-fileinfo__badge {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--pf-accent-strong, #1d4ed8);
+  background: var(--pf-accent-tint, rgba(37, 99, 235, 0.1));
+  border: 1px solid var(--pf-accent-ring, rgba(37, 99, 235, 0.45));
 }
 .pf-btn {
   display: inline-flex;
@@ -158,48 +252,48 @@ const GLASS_CSS = `
   transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease, transform 0.06s ease;
 }
 .pf-btn:hover {
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--pf-hover-strong, rgba(255, 255, 255, 0.8));
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
 }
 .pf-btn:active {
   transform: scale(0.93);
 }
 .pf-btn:focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.55);
+  outline: 2px solid var(--pf-accent-ring, rgba(37, 99, 235, 0.45));
   outline-offset: 1px;
 }
 .pf-btn--on {
-  background: linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(37, 99, 235, 0.1));
-  color: var(--pf-accent);
-  border-color: rgba(37, 99, 235, 0.3);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.06);
+  background: var(--pf-accent-tint, rgba(37, 99, 235, 0.1));
+  color: var(--pf-accent-strong, #1d4ed8);
+  border-color: var(--pf-accent-ring, rgba(37, 99, 235, 0.45));
 }
 .pf-btn--on:hover {
-  background: linear-gradient(180deg, rgba(37, 99, 235, 0.28), rgba(37, 99, 235, 0.14));
+  background: var(--pf-accent-tint, rgba(37, 99, 235, 0.16));
 }
 .pf-btn--chip {
   width: auto;
   padding: 0 8px;
+  min-width: 42px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: var(--pf-ink-soft);
+  color: var(--pf-ink-soft, #46505f);
 }
 .pf-txt {
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
-  color: var(--pf-ink-soft);
+  color: var(--pf-ink-soft, #46505f);
   white-space: nowrap;
 }
 .pf-input {
   height: 30px;
   min-width: 0;
   border-radius: 9px;
-  border: 1px solid var(--pf-line);
-  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--pf-seg-border, rgba(15, 23, 42, 0.08));
+  background: var(--pf-seg-bg, rgba(255, 255, 255, 0.5));
   padding: 0 6px;
-  color: var(--pf-ink);
+  color: var(--pf-ink, #172033);
   font: inherit;
   font-size: 12px;
   text-align: center;
@@ -213,15 +307,15 @@ const GLASS_CSS = `
   margin: 0;
 }
 .pf-input::placeholder {
-  color: var(--pf-ink-faint);
+  color: var(--pf-ink-faint, #76808e);
 }
 .pf-input:hover {
-  border-color: rgba(15, 23, 42, 0.24);
+  border-color: var(--pf-glass-line, rgba(15, 23, 42, 0.2));
 }
 .pf-input:focus {
-  border-color: rgba(37, 99, 235, 0.55);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+  border-color: var(--pf-accent-ring, rgba(37, 99, 235, 0.45));
+  background: var(--pf-hover-strong, rgba(255, 255, 255, 0.9));
+  box-shadow: 0 0 0 3px var(--pf-accent-tint, rgba(37, 99, 235, 0.14));
 }
 .pf-input--page {
   width: 34px;
@@ -231,47 +325,27 @@ const GLASS_CSS = `
   width: 56px;
   padding: 0 4px;
 }
-.pf-search {
-  position: relative;
-}
-.pf-search__icon {
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  color: var(--pf-ink-faint);
-  pointer-events: none;
-}
-.pf-search__input {
-  width: 148px;
-  height: 30px;
-  border-radius: 9px;
-  border: 1px solid var(--pf-line);
-  background: rgba(255, 255, 255, 0.55);
-  padding: 0 24px 0 28px;
-  color: var(--pf-ink);
-  font: inherit;
-  font-size: 12px;
-  outline: none;
-  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
-}
-.pf-search__input::placeholder {
-  color: var(--pf-ink-faint);
-}
-.pf-search__input:focus {
-  border-color: rgba(37, 99, 235, 0.55);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
-}
 .pf-seg {
   display: flex;
   gap: 2px;
   align-items: center;
   padding: 2px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.42);
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: var(--pf-seg-bg, rgba(255, 255, 255, 0.5));
+  border: 1px solid var(--pf-seg-border, rgba(15, 23, 42, 0.08));
+}
+.pf-seg--stack {
+  flex-direction: column;
+  align-items: stretch;
+  width: 132px;
+  max-width: 46vw;
+}
+.pf-seg--stack .pf-seg__btn {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 10px;
 }
 .pf-seg__btn {
   height: 24px;
@@ -279,7 +353,7 @@ const GLASS_CSS = `
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: var(--pf-ink-soft);
+  color: var(--pf-ink-soft, #46505f);
   font: inherit;
   font-size: 11px;
   font-weight: 500;
@@ -287,85 +361,80 @@ const GLASS_CSS = `
   transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease, transform 0.06s ease;
 }
 .pf-seg__btn:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--pf-hover-strong, rgba(255, 255, 255, 0.8));
 }
 .pf-seg__btn:active {
   transform: scale(0.95);
 }
 .pf-seg__btn:focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.55);
+  outline: 2px solid var(--pf-accent-ring, rgba(37, 99, 235, 0.45));
   outline-offset: 1px;
 }
 .pf-seg__btn--on {
-  background: #fff;
-  color: var(--pf-accent);
+  background: var(--pf-seg-on, #ffffff);
+  color: var(--pf-accent-strong, #1d4ed8);
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  box-shadow: var(--pf-seg-on-shadow, 0 1px 3px rgba(15, 23, 42, 0.14));
 }
 .pf-seg__btn--on:hover {
-  background: #fff;
+  background: var(--pf-seg-on, #ffffff);
 }
-.pf-more {
-  position: relative;
-  align-self: stretch;
-  margin-left: auto;
-}
-.pf-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  display: none;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 236px;
-  max-height: min(70vh, 480px);
-  overflow-y: auto;
-  padding: 6px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.9);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  box-shadow: 0 22px 46px rgba(2, 6, 23, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.85);
-}
-.pf-menu--open {
-  display: flex;
-  animation: pf-in 0.16s ease-out;
-}
-.pf-menu .pf-group {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 7px 8px;
-  border-radius: 9px;
-}
-.pf-menu .pf-group:hover {
-  background: rgba(255, 255, 255, 0.65);
-}
-.pf-menu .pf-group:not(:first-child) {
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
-}
-.pf-menu .pf-group .pf-group__label {
-  padding: 0;
-  font-size: 10.5px;
-}
-.pf-menu .pf-divider {
-  display: none;
+/* Narrow surfaces: the rails reflow beneath the stage as horizontal strips so
+   every control stays reachable — nothing folds into a hidden overflow menu. */
+@media (max-width: 760px) {
+  .pf-body {
+    flex-direction: column;
+  }
+  .pf-body__middle,
+  .pf-stage {
+    order: 0;
+  }
+  .pf-rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 12px;
+  }
+  .pf-rail--left {
+    order: 1;
+    border-right: none;
+    border-top: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
+  }
+  .pf-rail--right {
+    order: 2;
+    border-left: none;
+    border-top: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
+  }
+  .pf-rail .pf-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .pf-rail .pf-divider {
+    width: 1px;
+    height: auto;
+    align-self: stretch;
+    margin: 0 2px;
+  }
+  .pf-seg--stack {
+    width: auto;
+  }
 }
 @media (pointer: coarse) {
   .pf-btn { width: 38px; height: 38px; }
   .pf-btn--chip { height: 38px; }
-  .pf-input, .pf-search, .pf-search__input { height: 38px; }
+  .pf-input { height: 38px; }
   .pf-seg__btn { height: 30px; padding: 0 12px; }
-  .pf-group { gap: 2px; }
+  .pf-bottom .pf-btn { width: 34px; height: 34px; }
 }
 @media (max-width: 480px) {
-  .pf-bar .pf-group__label { display: none; }
+  .pf-group__label { display: none; }
+  .pf-fileinfo { max-width: 150px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pf-bar, .pf-menu { animation: none; }
-  .pf-btn, .pf-seg__btn, .pf-input, .pf-search__input { transition: none; }
+  .pf-top, .pf-bottom { animation: none; }
+  .pf-btn, .pf-seg__btn, .pf-input { transition: none; }
 }
 `
 
@@ -375,14 +444,6 @@ function ensureGlassStyles(): void {
   style.id = GLASS_STYLE_ID
   style.textContent = GLASS_CSS
   document.head.appendChild(style)
-}
-
-interface GroupRef {
-  key: string
-  el: HTMLDivElement
-  cluster: string
-  pinned: boolean
-  width: number
 }
 
 interface SegmentedResult<T> {
@@ -419,10 +480,11 @@ function makeSegmented<T extends string | number>(
   label: string,
   options: readonly { label: string; value: T }[],
   initial: T,
-  onChange: (value: T) => void
+  onChange: (value: T) => void,
+  stack = false
 ): SegmentedResult<T> {
   const container = document.createElement('div')
-  container.className = 'pf-seg'
+  container.className = stack ? 'pf-seg pf-seg--stack' : 'pf-seg'
   container.setAttribute('role', 'radiogroup')
   container.setAttribute('aria-label', label)
 
@@ -478,7 +540,7 @@ function makeSegmented<T extends string | number>(
   }
 }
 
-function makeGroup(label: string, cluster: string): { wrapper: HTMLDivElement; row: HTMLDivElement } {
+function makeGroup(label: string): { wrapper: HTMLDivElement; row: HTMLDivElement } {
   const wrapper = document.createElement('div')
   wrapper.className = 'pf-group'
   const labelEl = document.createElement('span')
@@ -488,7 +550,6 @@ function makeGroup(label: string, cluster: string): { wrapper: HTMLDivElement; r
   const row = document.createElement('div')
   row.className = 'pf-row'
   wrapper.appendChild(row)
-  wrapper.dataset.cluster = cluster
   return { wrapper, row }
 }
 
@@ -497,6 +558,15 @@ function makeDivider(): HTMLDivElement {
   divider.className = 'pf-divider'
   divider.setAttribute('aria-hidden', 'true')
   return divider
+}
+
+function iconEl(svg: string, title: string): HTMLSpanElement {
+  const el = document.createElement('span')
+  el.style.display = 'flex'
+  el.innerHTML = svg
+  el.setAttribute('aria-hidden', 'true')
+  el.title = title
+  return el
 }
 
 interface ToolbarRefs {
@@ -510,140 +580,299 @@ interface ToolbarRefs {
   sheetsSeg?: SegmentedResult<string>
   lensMagSeg?: SegmentedResult<number>
   lensSizeSeg?: SegmentedResult<number>
-  searchInput?: HTMLInputElement
-  searchClear?: HTMLButtonElement
-  searchCount?: HTMLSpanElement
   modeSeg?: SegmentedResult<'preview' | 'code'>
+  fullscreenButton?: HTMLButtonElement
 }
 
-function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: () => void; scheduleLayout: () => void } {
+function buildToolbar(actions: PreviewActions): {
+  root: HTMLElement
+  stageHost: HTMLElement
+  cleanup: () => void
+} {
   ensureGlassStyles()
 
   const root = document.createElement('div')
   root.className = 'pf-controls'
 
-  const bar = document.createElement('div')
-  bar.className = 'pf-bar'
-  bar.setAttribute('role', 'toolbar')
-  bar.setAttribute('aria-label', 'Preview controls')
-  root.appendChild(bar)
+  const top = document.createElement('div')
+  top.className = 'pf-top'
+  top.setAttribute('role', 'toolbar')
+  top.setAttribute('aria-label', 'Preview controls')
+  root.appendChild(top)
 
-  const moreWrapper = document.createElement('div')
-  moreWrapper.className = 'pf-more'
-  bar.appendChild(moreWrapper)
+  const body = document.createElement('div')
+  body.className = 'pf-body'
+  root.appendChild(body)
 
-  const moreButton = makeButton(ICONS.more, 'More controls', () => toggleMenu(true))
-  moreButton.setAttribute('aria-haspopup', 'true')
-  moreButton.setAttribute('aria-expanded', 'false')
-  moreButton.style.display = 'none'
-  moreWrapper.appendChild(moreButton)
+  const leftRail = document.createElement('div')
+  leftRail.className = 'pf-rail pf-rail--left'
+  body.appendChild(leftRail)
 
-  const menu = document.createElement('div')
-  menu.className = 'pf-menu'
-  menu.setAttribute('role', 'menu')
-  menu.setAttribute('aria-label', 'More controls')
-  moreWrapper.appendChild(menu)
+  /* The renderer's stage is moved in here (see mountControls), keeping the
+     content pane between the rails in normal flow. */
+  const stageHost = document.createElement('div')
+  stageHost.className = 'pf-body__middle'
+  body.appendChild(stageHost)
+
+  const rightRail = document.createElement('div')
+  rightRail.className = 'pf-rail pf-rail--right'
+  body.appendChild(rightRail)
+
+  const bottom = document.createElement('div')
+  bottom.className = 'pf-bottom'
+  bottom.setAttribute('role', 'toolbar')
+  bottom.setAttribute('aria-label', 'Document navigation')
+  root.appendChild(bottom)
 
   const refs = {} as ToolbarRefs
-  if (actions.zoomPercent !== undefined) {
-    refs.zoomLabel = makeButton('100%', 'Current zoom — click to reset to the default view', () => {
-      actions.resetZoom()
-      refresh()
-    }, { chip: true })
-    refs.zoomLabel.dataset.lastZoom = ''
-  }
 
   /* ------------------------------------------------------------------ */
-  /* Groups (visual order == insertion order). Pinned groups survive     */
-  /* the overflow collapse.                                             */
+  /* Top bar: document context + document-level actions                 */
   /* ------------------------------------------------------------------ */
 
-  const groupRefs: GroupRef[] = []
+  /* File — the document context: icon + name + format badge on the left. */
+  if (actions.fileName) {
+    const { wrapper, row } = makeGroup('')
+    top.appendChild(wrapper)
+    const info = document.createElement('div')
+    info.className = 'pf-fileinfo'
+    row.appendChild(info)
 
-  const addGroup = (key: string, label: string, cluster: string, pinned: boolean, build: (row: HTMLDivElement) => void): void => {
-    const { wrapper, row } = makeGroup(label, cluster)
-    build(row)
-    groupRefs.push({ key, el: wrapper, cluster, pinned, width: 0 })
+    info.appendChild(iconEl(ICONS.file, actions.fileTypeLabel ?? 'File'))
+    const name = document.createElement('span')
+    name.className = 'pf-fileinfo__name'
+    name.textContent = actions.fileName
+    name.title = actions.fileName
+    info.appendChild(name)
+
+    const badge = document.createElement('span')
+    badge.className = 'pf-fileinfo__badge'
+    badge.textContent = actions.fileTypeLabel
+    info.appendChild(badge)
   }
 
-  /* Mode — pinned so switching between alternate views (e.g. a Markdown
-     document's rendered Preview and its raw Code) stays one tap away. */
+  /* Mode — switching between alternate views (e.g. a Markdown document's
+     rendered Preview and its raw Code) stays one tap away. */
   if (actions.viewMode) {
     const viewMode = actions.viewMode
-    addGroup('mode', 'Mode', 'document', true, (row) => {
-      const seg = makeSegmented<'preview' | 'code'>(
-        'View mode',
-        [
-          { label: 'Preview', value: 'preview' },
-          { label: 'Code', value: 'code' },
-        ],
-        viewMode.mode,
-        (value) => {
-          try {
-            viewMode.setMode(value)
-          } catch (error) {
-            console.error('[preview-file] view mode switch failed', error)
-          }
-          refresh()
+    top.appendChild(makeDivider())
+    const { wrapper, row } = makeGroup('Mode')
+    top.appendChild(wrapper)
+    const seg = makeSegmented<'preview' | 'code'>(
+      'View mode',
+      [
+        { label: 'Preview', value: 'preview' },
+        { label: 'Code', value: 'code' },
+      ],
+      viewMode.mode,
+      (value) => {
+        try {
+          viewMode.setMode(value)
+        } catch (error) {
+          console.error('[preview-file] view mode switch failed', error)
         }
+        refresh()
+      }
+    )
+    refs.modeSeg = seg
+    row.appendChild(seg.el)
+  }
+
+  /* Text — copy / word wrap. */
+  if (actions.text && (actions.text.canCopy || actions.text.canWordWrap)) {
+    const text = actions.text
+    top.appendChild(makeDivider())
+    const { wrapper, row } = makeGroup('Text')
+    top.appendChild(wrapper)
+    if (text.canCopy) {
+      row.appendChild(makeButton(ICONS.copy, 'Copy to clipboard', () => text.copy()))
+    }
+    if (text.canWordWrap) {
+      const wrap = makeButton(ICONS.wrap, 'Turn on word wrap', () => {
+        text.toggleWordWrap()
+        refresh()
+      })
+      refs.wrapButton = wrap
+      row.appendChild(wrap)
+    }
+  }
+
+  top.appendChild(makeDivider())
+  const spacer = document.createElement('span')
+  spacer.className = 'pf-spacer'
+  top.appendChild(spacer)
+
+  /* Download — document-level action pinned to the right edge. */
+  if (actions.canDownload) {
+    const { wrapper, row } = makeGroup('')
+    top.appendChild(wrapper)
+    row.appendChild(makeButton(ICONS.download, 'Download', () => actions.download()))
+  }
+
+  /* Groups are stacked vertically with hairline dividers between them. */
+  const addRailGroup = (rail: HTMLElement, build: () => void): void => {
+    if (rail.childElementCount > 0) rail.appendChild(makeDivider())
+    build()
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Left rail: sheet navigation + sidebar toggles                      */
+  /* ------------------------------------------------------------------ */
+
+  if (actions.sheets) {
+    const sheets = actions.sheets
+    addRailGroup(leftRail, () => {
+      const { wrapper, row } = makeGroup('Sheets')
+      leftRail.appendChild(wrapper)
+      const seg = makeSegmented<string>(
+        'Sheet',
+        sheets.sheets.map((name) => ({ label: name, value: name })),
+        sheets.activeSheet,
+        (name) => {
+          sheets.switchSheet(name)
+          refresh()
+        },
+        true
       )
-      refs.modeSeg = seg
+      refs.sheetsSeg = seg
       row.appendChild(seg.el)
     })
   }
 
-  /* Pages — pinned. */
-  if (actions.pages) {
-    addGroup('pages', 'Pages', 'document', true, (row) => {
-      row.appendChild(
-        makeButton(ICONS.prevPage, 'Previous page', () => {
-          actions.pages?.previousPage()
-          refresh()
-        })
-      )
-
-      const input = document.createElement('input')
-      input.type = 'text'
-      input.inputMode = 'numeric'
-      input.className = 'pf-input pf-input--page'
-      input.addEventListener('focus', () => input.select())
-      const commit = (): void => {
-        const value = Number(input.value)
-        const total = actions.pages?.pageCount ?? 1
-        if (Number.isFinite(value) && value >= 1 && value <= total) {
-          actions.pages?.goToPage(Math.floor(value))
-        } else {
-          input.value = String(actions.pages?.page ?? 1)
-        }
+  if (actions.thumbnails) {
+    const thumbnails = actions.thumbnails
+    addRailGroup(leftRail, () => {
+      const { wrapper, row } = makeGroup('Sidebar')
+      leftRail.appendChild(wrapper)
+      const button = makeButton(ICONS.thumbnails, 'Show thumbnails', () => {
+        thumbnails.setVisible(!thumbnails.visible)
         refresh()
-      }
-      input.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault()
-          input.blur()
-          commit()
-        } else if (event.key === 'Escape') {
-          input.value = String(actions.pages?.page ?? 1)
-          input.blur()
-        }
       })
-      input.addEventListener('blur', commit)
-      refs.pageInput = input
-      row.appendChild(input)
+      refs.thumbnailsButton = button
+      row.appendChild(button)
+    })
+  }
 
-      const total = document.createElement('span')
-      total.className = 'pf-txt'
-      total.setAttribute('aria-hidden', 'true')
-      refs.pageTotal = total
-      row.appendChild(total)
+  if (leftRail.childElementCount === 0) leftRail.style.display = 'none'
 
-      row.appendChild(
-        makeButton(ICONS.nextPage, 'Next page', () => {
-          actions.pages?.nextPage()
+  /* ------------------------------------------------------------------ */
+  /* Right rail: how the content is seen — zoom, fit, rotate, page     */
+  /* flow, fullscreen and the image lens                                */
+  /* ------------------------------------------------------------------ */
+
+  if (actions.canZoom) {
+    addRailGroup(rightRail, () => {
+      const { wrapper, row } = makeGroup('Zoom')
+      rightRail.appendChild(wrapper)
+      row.appendChild(makeButton(ICONS.zoomOut, 'Zoom out', () => {
+        actions.zoomOut()
+        refresh()
+      }))
+      if (refs.zoomLabel === undefined) refs.zoomLabel = makeButton('', 'Current zoom — click to reset to the default view', () => {
+        actions.resetZoom()
+        refresh()
+      }, { chip: true })
+      refs.zoomLabel.dataset.lastZoom = ''
+      row.appendChild(refs.zoomLabel)
+      row.appendChild(makeButton(ICONS.zoomIn, 'Zoom in', () => {
+        actions.zoomIn()
+        refresh()
+      }))
+      row.appendChild(makeButton(ICONS.reset, 'Reset to default view', () => {
+        actions.resetZoom()
+        refresh()
+      }))
+    })
+  }
+
+  if (actions.fit) {
+    const fitControls = actions.fit
+    addRailGroup(rightRail, () => {
+      const { wrapper, row } = makeGroup('Fit')
+      rightRail.appendChild(wrapper)
+      row.appendChild(makeButton(ICONS.fitWidth, 'Fit width', () => {
+        fitControls.fitWidth()
+        refresh()
+      }))
+      row.appendChild(makeButton(ICONS.fitPage, 'Fit page', () => {
+        fitControls.fitPage()
+        refresh()
+      }))
+      if (fitControls.actualSize) {
+        row.appendChild(makeButton(ICONS.actualSize, 'Actual size (100%)', () => {
+          fitControls.actualSize?.()
           refresh()
-        })
-      )
+        }, { chip: true }))
+      }
+    })
+  }
 
+  if (actions.rotate) {
+    const rotateControls = actions.rotate
+    addRailGroup(rightRail, () => {
+      const { wrapper, row } = makeGroup('Rotate')
+      rightRail.appendChild(wrapper)
+      row.appendChild(makeButton(ICONS.rotateCcw, 'Rotate counter-clockwise (−90°)', () => {
+        rotateControls.rotateCounterclockwise()
+        refresh()
+      }))
+      if (typeof rotateControls.setRotation === 'function') {
+        const input = document.createElement('input')
+        input.type = 'text'
+        input.inputMode = 'numeric'
+        input.className = 'pf-input pf-input--rotate'
+        input.placeholder = '0'
+        input.setAttribute('aria-label', 'Rotation in degrees')
+        input.title = 'Rotation in degrees — type a value and press Enter (empty or invalid input is ignored)'
+        input.addEventListener('focus', () => input.select())
+        const revert = (): void => {
+          input.value = typeof rotateControls.rotation === 'number' ? String(rotateControls.rotation) : '0'
+        }
+        const commit = (): void => {
+          const text = input.value.trim()
+          if (text === '' || !Number.isFinite(Number(text))) {
+            revert()
+            refresh()
+            return
+          }
+          try {
+            rotateControls.setRotation?.(Number(text))
+          } catch (error) {
+            console.error('[preview-file] rotation failed', error)
+          }
+          refresh()
+        }
+        input.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            input.blur()
+            commit()
+          } else if (event.key === 'Escape') {
+            revert()
+            input.blur()
+          }
+        })
+        input.addEventListener('blur', commit)
+        refs.rotationInput = input
+        row.appendChild(input)
+      }
+      row.appendChild(makeButton(ICONS.rotateCw, 'Rotate clockwise (+90°)', () => {
+        rotateControls.rotateClockwise()
+        refresh()
+      }))
+      if (rotateControls.resetRotation) {
+        row.appendChild(makeButton(ICONS.resetRotation, 'Reset rotation (0°)', () => {
+          rotateControls.resetRotation?.()
+          refresh()
+        }))
+      }
+    })
+  }
+
+  if (actions.singlePage || actions.canFullscreen) {
+    addRailGroup(rightRail, () => {
+      const { wrapper, row } = makeGroup('View')
+      rightRail.appendChild(wrapper)
       if (actions.singlePage) {
         const single = makeButton(ICONS.continuous, 'Switch between continuous and single page view', () => {
           actions.singlePage?.toggle()
@@ -652,237 +881,22 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
         refs.singlePageButton = single
         row.appendChild(single)
       }
-    })
-  }
-
-  /* Zoom — pinned. */
-  if (actions.canZoom) {
-    addGroup('zoom', 'Zoom', 'document', true, (row) => {
-      row.appendChild(
-        makeButton(ICONS.zoomOut, 'Zoom out', () => {
-          actions.zoomOut()
-          refresh()
-        })
-      )
-      if (refs.zoomLabel) row.appendChild(refs.zoomLabel)
-      row.appendChild(
-        makeButton(ICONS.zoomIn, 'Zoom in', () => {
-          actions.zoomIn()
-          refresh()
-        })
-      )
-      row.appendChild(
-        makeButton(ICONS.reset, 'Reset to default view', () => {
-          actions.resetZoom()
-          refresh()
-        })
-      )
-    })
-  }
-
-  /* View — pinned so rotation (and other view state) stays one tap away even
-     on narrow surfaces; everything else folds into the overflow menu. */
-  const viewNeeded = Boolean(actions.fit || actions.rotate || actions.thumbnails || actions.canFullscreen)
-  if (viewNeeded) {
-    addGroup('view', 'View', 'document', true, (row) => {
-      if (actions.fit) {
-        row.appendChild(
-          makeButton(ICONS.fitWidth, 'Fit width', () => {
-            actions.fit?.fitWidth()
-            refresh()
-          })
-        )
-        row.appendChild(
-          makeButton(ICONS.fitPage, 'Fit page', () => {
-            actions.fit?.fitPage()
-            refresh()
-          })
-        )
-        if (actions.fit.actualSize) {
-          row.appendChild(
-            makeButton(ICONS.actualSize, 'Actual size (100%)', () => {
-              actions.fit?.actualSize?.()
-              refresh()
-            }, { chip: true })
-          )
-        }
-      }
-      if (actions.rotate) {
-        row.appendChild(
-          makeButton(ICONS.rotateCcw, 'Rotate counter-clockwise (−90°)', () => {
-            actions.rotate?.rotateCounterclockwise()
-            refresh()
-          })
-        )
-        if (typeof actions.rotate.setRotation === 'function') {
-          const input = document.createElement('input')
-          input.type = 'text'
-          input.inputMode = 'numeric'
-          input.className = 'pf-input pf-input--rotate'
-          input.placeholder = '0'
-          input.setAttribute('aria-label', 'Rotation in degrees')
-          input.title = 'Rotation in degrees — type a value and press Enter (empty or invalid input is ignored)'
-          input.addEventListener('focus', () => input.select())
-          const revert = (): void => {
-            input.value = typeof actions.rotate?.rotation === 'number' ? String(actions.rotate.rotation) : '0'
-          }
-          const commit = (): void => {
-            const text = input.value.trim()
-            if (text === '' || !Number.isFinite(Number(text))) {
-              revert()
-              refresh()
-              return
-            }
-            try {
-              actions.rotate?.setRotation?.(Number(text))
-            } catch (error) {
-              console.error('[preview-file] rotation failed', error)
-            }
-            refresh()
-          }
-          input.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault()
-              input.blur()
-              commit()
-            } else if (event.key === 'Escape') {
-              revert()
-              input.blur()
-            }
-          })
-          input.addEventListener('blur', commit)
-          refs.rotationInput = input
-          row.appendChild(input)
-        }
-        row.appendChild(
-          makeButton(ICONS.rotateCw, 'Rotate clockwise (+90°)', () => {
-            actions.rotate?.rotateClockwise()
-            refresh()
-          })
-        )
-        if (actions.rotate.resetRotation) {
-          row.appendChild(
-            makeButton(ICONS.resetRotation, 'Reset rotation (0°)', () => {
-              actions.rotate?.resetRotation?.()
-              refresh()
-            })
-          )
-        }
-      }
-      if (actions.thumbnails) {
-        const thumbnails = makeButton(ICONS.thumbnails, 'Show thumbnails', () => {
-          actions.thumbnails?.setVisible(!actions.thumbnails.visible)
-          refresh()
-        })
-        refs.thumbnailsButton = thumbnails
-        row.appendChild(thumbnails)
-      }
       if (actions.canFullscreen) {
-        row.appendChild(
-          makeButton(ICONS.fullscreen, 'Enter fullscreen', () => {
-            void actions.fullscreen()
-          })
-        )
-      }
-    })
-  }
-
-  /* Sheet — spreadsheet-specific, pinned so the active sheet stays one tap
-     away on every screen size. */
-  if (actions.sheets) {
-    const sheets = actions.sheets
-    addGroup('sheet', 'Sheet', 'spreadsheet', true, (row) => {
-      const seg = makeSegmented<string>(
-        'Sheet',
-        sheets.sheets.map((name) => ({ label: name, value: name })),
-        sheets.activeSheet,
-        (name) => {
-          sheets.switchSheet(name)
-          refresh()
-        }
-      )
-      refs.sheetsSeg = seg
-      row.appendChild(seg.el)
-    })
-  }
-
-  /* Search — spreadsheet-specific. */
-  if (actions.search) {
-    const search = actions.search
-    addGroup('search', 'Search', 'spreadsheet', false, (row) => {
-      const wrap = document.createElement('div')
-      wrap.className = 'pf-search'
-      const icon = document.createElement('span')
-      icon.className = 'pf-search__icon'
-      icon.innerHTML = ICONS.search
-      wrap.appendChild(icon)
-      const input = document.createElement('input')
-      input.type = 'search'
-      input.className = 'pf-search__input'
-      input.placeholder = 'Search cells'
-      input.setAttribute('aria-label', 'Search cells')
-      input.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          search.search(input.value.trim())
-          refresh()
-        } else if (event.key === 'Escape') {
-          if (input.value) {
-            input.value = ''
-            search.clear?.()
-            search.search('')
-            refresh()
-            input.focus()
-          }
-        }
-      })
-      wrap.appendChild(input)
-      row.appendChild(wrap)
-
-      const clear = makeButton(ICONS.clear, 'Clear search', () => {
-        input.value = ''
-        search.clear?.()
-        search.search('')
-        refresh()
-        input.focus()
-      })
-      refs.searchClear = clear
-      row.appendChild(clear)
-
-      const count = document.createElement('span')
-      count.className = 'pf-txt'
-      count.style.minWidth = '22px'
-      count.style.textAlign = 'center'
-      count.setAttribute('aria-live', 'polite')
-      refs.searchCount = count
-      row.appendChild(count)
-
-      refs.searchInput = input
-    })
-  }
-
-  /* Text */
-  if (actions.text && (actions.text.canCopy || actions.text.canWordWrap)) {
-    const text = actions.text
-    addGroup('text', 'Text', 'text', false, (row) => {
-      if (text.canCopy) {
-        row.appendChild(makeButton(ICONS.copy, 'Copy to clipboard', () => text.copy()))
-      }
-      if (text.canWordWrap) {
-        const wrap = makeButton(ICONS.wrap, 'Turn on word wrap', () => {
-          text.toggleWordWrap()
-          refresh()
+        const fullscreen = makeButton(ICONS.maximize, 'Enter fullscreen', () => {
+          void toggleFullscreen()
         })
-        refs.wrapButton = wrap
-        row.appendChild(wrap)
+        refs.fullscreenButton = fullscreen
+        row.appendChild(fullscreen)
       }
     })
   }
 
-  /* Lens — image previews only, built straight from the renderer's lens
-     adapter. Defaults (8x magnification, 160px size) need no configuration. */
   if (actions.lens) {
     const lens = actions.lens
-    addGroup('lens', 'Lens', 'image', false, (row) => {
+    addRailGroup(rightRail, () => {
+      const { wrapper, row } = makeGroup('Lens')
+      rightRail.appendChild(wrapper)
+
       const magnification = makeSegmented<number>(
         'Lens magnification',
         lens.magnificationOptions.map((value) => ({ label: `${value}x`, value })),
@@ -900,16 +914,8 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
       refs.lensSizeSeg = size
 
       const stacked = (title: string, seg: SegmentedResult<number>): void => {
-        const line = document.createElement('div')
-        line.style.display = 'flex'
-        line.style.alignItems = 'center'
-        line.style.gap = '8px'
-        const label = document.createElement('span')
-        label.className = 'pf-group__label'
-        label.textContent = title
-        label.style.padding = '0'
-        line.appendChild(label)
-        line.appendChild(seg.el)
+        const { wrapper: line, row: lineRow } = makeGroup(title)
+        lineRow.appendChild(seg.el)
         row.appendChild(line)
       }
 
@@ -918,20 +924,76 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
     })
   }
 
-  /* File */
-  if (actions.canDownload) {
-    addGroup('file', 'File', 'file', false, (row) => {
-      row.appendChild(makeButton(ICONS.download, 'Download', () => actions.download()))
+  if (rightRail.childElementCount === 0) rightRail.style.display = 'none'
+
+  /* ------------------------------------------------------------------ */
+  /* Bottom bar: page navigation                                        */
+  /* ------------------------------------------------------------------ */
+
+  if (actions.pages) {
+    const pages = actions.pages
+    const { wrapper, row } = makeGroup('Pages')
+    bottom.appendChild(wrapper)
+
+    row.appendChild(makeButton(ICONS.prevPage, 'Previous page', () => {
+      pages.previousPage()
+      refresh()
+    }))
+
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.inputMode = 'numeric'
+    input.className = 'pf-input pf-input--page'
+    input.addEventListener('focus', () => input.select())
+    const commit = (): void => {
+      const value = Number(input.value)
+      const total = pages.pageCount ?? 1
+      if (Number.isFinite(value) && value >= 1 && value <= total) {
+        pages.goToPage(Math.floor(value))
+      } else {
+        input.value = String(pages.page ?? 1)
+      }
+      refresh()
+    }
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        input.blur()
+        commit()
+      } else if (event.key === 'Escape') {
+        input.value = String(pages.page ?? 1)
+        input.blur()
+      }
     })
+    input.addEventListener('blur', commit)
+    refs.pageInput = input
+    row.appendChild(input)
+
+    const total = document.createElement('span')
+    total.className = 'pf-txt'
+    total.setAttribute('aria-hidden', 'true')
+    refs.pageTotal = total
+    row.appendChild(total)
+
+    row.appendChild(makeButton(ICONS.nextPage, 'Next page', () => {
+      pages.nextPage()
+      refresh()
+    }))
   }
 
-  if (groupRefs.length === 0) {
-    root.style.display = 'none'
-  }
+  if (bottom.childElementCount === 0) bottom.style.display = 'none'
 
   /* ------------------------------------------------------------------ */
   /* Refresh                                                            */
   /* ------------------------------------------------------------------ */
+
+  const toggleFullscreen = (): void => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen()
+    } else {
+      void actions.fullscreen()
+    }
+  }
 
   const refresh = (): void => {
     if (refs.pageInput && refs.pageTotal && actions.pages) {
@@ -947,12 +1009,6 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
     }
     if (refs.sheetsSeg && actions.sheets) {
       refs.sheetsSeg.setActive(actions.sheets.activeSheet)
-    }
-    if (refs.searchCount && actions.search) {
-      const count = actions.search.resultCount
-      refs.searchCount.textContent = count === undefined ? '' : count === 0 ? 'no' : String(count)
-      refs.searchCount.title =
-        count === undefined ? '' : count === 0 ? 'No matches' : count === 1 ? '1 match' : `${count} matches`
     }
     if (refs.wrapButton && actions.text) {
       const on = actions.text.wordWrap
@@ -999,126 +1055,16 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
     }
     if (refs.lensMagSeg && actions.lens) refs.lensMagSeg.setActive(actions.lens.magnification)
     if (refs.lensSizeSeg && actions.lens) refs.lensSizeSeg.setActive(actions.lens.lensSize)
-  }
-
-  /* ------------------------------------------------------------------ */
-  /* Overflow layout                                                     */
-  /* ------------------------------------------------------------------ */
-
-  const MENU_BUTTON_WIDTH = 38
-  let lastSignature = ''
-
-  const renderBar = (): void => {
-    while (bar.firstChild && bar.firstChild !== moreWrapper) {
-      bar.removeChild(bar.firstChild)
-    }
-    const visible = groupRefs.filter((group) => group.el.parentElement !== menu)
-    let lastCluster = ''
-    for (const group of visible) {
-      if (lastCluster && group.cluster !== lastCluster) bar.appendChild(makeDivider())
-      bar.appendChild(group.el)
-      lastCluster = group.cluster
-    }
-    bar.appendChild(moreWrapper)
-  }
-
-  /* Group widths are intrinsic, so they are measured exactly once. */
-  const measurer = document.createElement('div')
-  measurer.style.cssText = 'position:fixed;left:-9999px;top:0;display:flex;flex-direction:column;gap:1px;'
-  document.body.appendChild(measurer)
-  for (const group of groupRefs) {
-    measurer.appendChild(group.el)
-    group.width = group.el.offsetWidth || 0
-    measurer.removeChild(group.el)
-    bar.appendChild(group.el)
-  }
-  measurer.remove()
-
-  const layout = (): void => {
-    const hostWidth = root.parentElement?.clientWidth ?? 0
-    const available = Math.max(220, Math.min(window.innerWidth - 24, (hostWidth || window.innerWidth) - 24, 640))
-
-    const total = groupRefs.reduce((sum, group) => sum + group.width, 0) + groupRefs.length * 2
-    const capacity = available - MENU_BUTTON_WIDTH
-
-    const toMenu = new Set<string>()
-    if (total > capacity) {
-      let remaining = total
-      const popable = groupRefs.filter((group) => !group.pinned).reverse()
-      for (const group of popable) {
-        if (remaining <= capacity) break
-        remaining -= group.width + 2
-        toMenu.add(group.key)
-      }
-    }
-    bar.classList.toggle('pf-bar--left', total > capacity)
-
-    for (const group of groupRefs) {
-      const inMenu = group.el.parentElement === menu
-      const shouldBeInMenu = toMenu.has(group.key)
-      if (shouldBeInMenu) {
-        if (!inMenu) menu.appendChild(group.el)
-      } else if (inMenu) {
-        menu.removeChild(group.el)
-      }
-    }
-
-    const inMenu = groupRefs.filter((group) => group.el.parentElement === menu)
-    moreButton.style.display = inMenu.length > 0 ? 'inline-flex' : 'none'
-    if (inMenu.length === 0) toggleMenu(false)
-
-    const signature = groupRefs.filter((group) => group.el.parentElement !== menu).map((group) => group.key).join(',')
-    if (signature !== lastSignature) {
-      lastSignature = signature
-      renderBar()
+    if (refs.fullscreenButton) {
+      const fullscreen = Boolean(
+        document.fullscreenElement && document.fullscreenElement.contains(root)
+      )
+      refs.fullscreenButton.innerHTML = fullscreen ? ICONS.minimize : ICONS.maximize
+      refs.fullscreenButton.title = fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'
+      refs.fullscreenButton.setAttribute('aria-label', fullscreen ? 'Exit fullscreen' : 'Enter fullscreen')
+      refs.fullscreenButton.setAttribute('aria-pressed', String(fullscreen))
     }
   }
-
-  /* ------------------------------------------------------------------ */
-  /* More menu behaviour                                                */
-  /* ------------------------------------------------------------------ */
-
-  const toggleMenu = (open: boolean): void => {
-    const isOpen = menu.classList.contains('pf-menu--open')
-    if (open === isOpen) return
-    if (open) {
-      menu.classList.add('pf-menu--open')
-      moreButton.setAttribute('aria-expanded', 'true')
-      const first = menu.querySelector<HTMLElement>('.pf-group:first-child button, .pf-group:first-child input')
-      first?.focus()
-    } else {
-      menu.classList.remove('pf-menu--open')
-      moreButton.setAttribute('aria-expanded', 'false')
-    }
-  }
-
-  const onDocumentPointerDown = (event: PointerEvent): void => {
-    if (menu.classList.contains('pf-menu--open') && !root.contains(event.target as Node)) {
-      toggleMenu(false)
-    }
-  }
-
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (!menu.classList.contains('pf-menu--open')) return
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      toggleMenu(false)
-      moreButton.focus()
-      return
-    }
-    if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return
-    const focusables = Array.from(menu.querySelectorAll<HTMLElement>('button, input'))
-    if (focusables.length === 0) return
-    const index = focusables.indexOf(document.activeElement as HTMLElement)
-    const next = event.key === 'ArrowDown' ? (index + 1) % focusables.length : (index - 1 + focusables.length) % focusables.length
-    event.preventDefault()
-    focusables[next]?.focus()
-  }
-
-  document.addEventListener('pointerdown', onDocumentPointerDown)
-  document.addEventListener('keydown', onKeyDown)
-  const onWindowResize = (): void => scheduleLayout()
-  window.addEventListener('resize', onWindowResize)
 
   /* ------------------------------------------------------------------ */
   /* Live updates + lifecycle                                           */
@@ -1134,23 +1080,17 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
      even though renderers never emit zoom events. */
   const zoomTimer = window.setInterval(refresh, 300)
 
-  const scheduleLayout = (): void => {
-    lastSignature = '<pending>'
-    window.setTimeout(layout, 0)
-  }
+  const onFullscreenChange = (): void => refresh()
+  document.addEventListener('fullscreenchange', onFullscreenChange)
 
   refresh()
-  layout()
-  scheduleLayout()
 
   return {
     root,
-    scheduleLayout,
+    stageHost,
     cleanup: () => {
       window.clearInterval(zoomTimer)
-      document.removeEventListener('pointerdown', onDocumentPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('resize', onWindowResize)
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
       for (const unsubscribe of unsubscribes) unsubscribe()
       root.remove()
     },
@@ -1159,14 +1099,26 @@ function buildToolbar(actions: PreviewActions): { root: HTMLElement; cleanup: ()
 
 export function mountControls(container: HTMLElement, actions: PreviewActions): () => void {
   const toolbar = buildToolbar(actions)
-  container.insertBefore(toolbar.root, container.firstChild)
 
-  const resizeObserver = new ResizeObserver(() => toolbar.scheduleLayout())
-  resizeObserver.observe(container)
+  /* The renderer's stage (created by preview() before controls mount) moves —
+     untouched, DOM subtree included — into the center of the new chrome. If it
+     is missing, a fresh one is created so the controls always have content
+     space between the rails. */
+  const stage = container.querySelector<HTMLElement>('.pf-stage')
+  container.replaceChildren(toolbar.root)
+  if (stage) {
+    stage.classList.add('pf-stage')
+    stage.style.flex = '1 1 auto'
+    toolbar.stageHost.appendChild(stage)
+  } else {
+    const fallback = document.createElement('div')
+    fallback.className = 'pf-stage'
+    fallback.style.cssText = 'position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;'
+    toolbar.stageHost.appendChild(fallback)
+  }
 
   const cleanup = toolbar.cleanup
   return () => {
-    resizeObserver.disconnect()
     cleanup()
   }
 }

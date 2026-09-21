@@ -46,50 +46,18 @@ export class CsvRenderer implements Renderer {
     stage.style.inset = '0'
     stage.style.display = 'flex'
     stage.style.flexDirection = 'column'
-    stage.style.background = '#ffffff'
+    stage.style.background = 'var(--pf-surface, #ffffff)'
     container.appendChild(stage)
 
     let scale = 1
     let table = buildTable()
-    let filtered: number[] | null = null
-    let query = ''
 
-    function visibleRows(): number[] {
-      if (!filtered) return dataRows.map((_, index) => index)
-      return filtered
-    }
-
-    function applyFilter(): void {
-      const rowsToSearch = dataRows
-      if (!query.trim()) {
-        filtered = null
-      } else {
-        const needle = query.trim().toLowerCase()
-        filtered = []
-        for (let r = 0; r < rowsToSearch.length; r += 1) {
-          const row = rowsToSearch[r] as string[]
-          if (row.some((cell) => cell.toLowerCase().includes(needle))) {
-            filtered.push(r)
-          }
-        }
-      }
-      rebuild()
-    }
-
-    function rebuild(): void {
-      const index = visibleRows()
-      table.destroy()
-      table = buildTable(index)
-      table.setScale(scale)
-    }
-
-    function buildTable(index?: number[]): ReturnType<typeof createVirtualTable> {
+    function buildTable(): ReturnType<typeof createVirtualTable> {
       return createVirtualTable({
         columnLabels,
-        rowCount: index ? index.length : dataRows.length,
+        rowCount: dataRows.length,
         getCell: (row, col) => {
-          const sourceRow = index ? (index[row] as number) : row
-          const data = dataRows[sourceRow]
+          const data = dataRows[row]
           return String(data ? (data[col] ?? '') : '')
         },
       })
@@ -121,19 +89,6 @@ export class CsvRenderer implements Renderer {
         fitPage: () => {
           scale = table.fitWidthTo(Math.max(1, stage.clientWidth))
           table.setScale(scale)
-        },
-      },
-      search: {
-        search: (text: string) => {
-          query = text
-          applyFilter()
-        },
-        get resultCount() {
-          return visibleRows().length
-        },
-        clear: () => {
-          query = ''
-          applyFilter()
         },
       },
     }

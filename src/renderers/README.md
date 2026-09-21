@@ -64,17 +64,23 @@ unlike the previewer side where order genuinely matters). It creates a read-only
 `fontSize`, reuses the `TextControls` capability for copy + word wrap, and disposes
 the editor instance in `destroy()`.
 
-The Archive renderer (`archive.ts`) is registered after Presentation. It builds a
-self-contained file browser from `ArchiveProvider` (`src/archives/`): breadcrumb +
-history navigation, virtualized rows, per-file download, a nested preview host fed
-through `context.previewSource`. Encrypted archives follow a **detect → unlock →
-browse** contract: `boot()` calls `provider.requiresPassword()` first and, for an
-encrypted archive, renders *only* a password prompt card — no rows, breadcrumbs,
-sizes or search are shown, and navigation is inert. Only a valid password unlocks the
-archive; `provider.list()` then runs and the normal tree builds. A wrong password
-keeps the prompt with an error, and Cancel sets a "remains locked" state with a Retry
-button. The renderer returns an empty `PreviewAdapter` (`{}`) so the outer toolbar
-still shows **Download** for the *original* archive. It owns
+The Archive renderer (`archive.ts`) is registered after Presentation. It renders a
+**two-pane explorer**: the left `.pf-arc-tree` pane owns all archive chrome
+(back/forward/up/root history, breadcrumbs, format badge, virtualized rows with sizes
+and per-file download, footer counts) and the right `.pf-arc-pane` hosts the
+nested preview, fed through `context.previewSource`. The tree is a flex sibling of
+the pane, so the nested preview's own chrome (top/left/right/bottom bars) lives
+entirely inside the pane and can never overlap the archive's navigation — the
+package's overall zero-overlap rule. On narrow screens the tree becomes a
+slide-in drawer and the pane gains an always-visible "show file list" toggle.
+Encrypted archives follow a **detect → unlock → browse** contract: `boot()` calls
+`provider.requiresPassword()` first and, for an encrypted archive, renders *only* a
+password prompt card behind a `.pf-arc-lock` overlay over both panes — no rows,
+breadcrumbs or sizes are shown, and navigation is inert. Only a valid password
+unlocks the archive; `provider.list()` then runs and the normal tree builds. A
+wrong password keeps the prompt with an error, and Cancel keeps the archive locked
+with a Retry affordance. The renderer returns an empty `PreviewAdapter` (`{}`) so the
+outer toolbar still shows **Download** for the *original* archive. It owns
 a session counter + a pending-frame guard so navigation races (a slow inner file
 resolving after you've moved away, queued rAF paints) can never write into a stale view;
 all of it unwinds via the `destroy` attachment and `context.clearPreview`. Depth is
@@ -86,6 +92,9 @@ whose preview recurses through the same `previewSource`.
 - Add a renderer as `{format}.ts` + `{Format}Renderer`, register it in `index.ts`.
 - Return capabilities via `PreviewAdapter` (defined in `src/controls/types.ts`);
   the toolbar picks them up automatically — never render controls yourself.
+- **Theme from tokens.** Every color must come from the light-only `--pf-*`
+  Liquid Glass tokens (`var(--pf-xxx, fallback)`); never hardcode a hex that
+  isn't a token fallback. There is no dark theme and no theme API.
 - Register an attachment with `createRenderState.set(container, ...)` and unwind it
   in `destroy()`. Every resource created in `render()` (observers, rAF loops, dynamic
   imports, canvas contexts) must be torn down in `destroy()`.

@@ -11,6 +11,8 @@ export interface VirtualTableOptions {
   readonly rowHeight?: number
   readonly minColumnWidth?: number
   readonly baseFontSize?: number
+  /** Row (in table space) to visually emphasize as the active match. */
+  readonly currentRow?: number | null
 }
 
 export interface VirtualTable {
@@ -18,6 +20,8 @@ export interface VirtualTable {
   setScale(scale: number): void
   scale(): number
   fitWidthTo(availableWidth: number): number
+  setCurrentRow(row: number | null): void
+  scrollRowIntoView(row: number): void
   destroy(): void
 }
 
@@ -30,17 +34,18 @@ export function createVirtualTable(options: VirtualTableOptions): VirtualTable {
   const viewport = document.createElement('div')
   viewport.style.position = 'relative'
   viewport.style.overflow = 'auto'
-  viewport.style.background = '#ffffff'
+  viewport.style.background = 'var(--pf-surface, #ffffff)'
   viewport.style.flex = '1 1 0'
   viewport.style.minHeight = '0'
-  viewport.style.fontFamily = 'system-ui, sans-serif'
+  viewport.style.color = 'var(--pf-ink, #1f2328)'
+  viewport.style.fontFamily = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
 
   const header = document.createElement('div')
   header.style.position = 'sticky'
   header.style.top = '0'
   header.style.zIndex = '3'
   header.style.display = 'flex'
-  header.style.background = '#eaeef2'
+  header.style.background = 'var(--pf-surface-2, #eaeef2)'
   viewport.appendChild(header)
 
   const body = document.createElement('div')
@@ -50,7 +55,7 @@ export function createVirtualTable(options: VirtualTableOptions): VirtualTable {
   const empty = document.createElement('div')
   empty.textContent = 'No rows to display.'
   empty.style.padding = '12px'
-  empty.style.color = '#6e7781'
+  empty.style.color = 'var(--pf-ink-faint, #6e7781)'
   empty.style.fontSize = '12px'
   body.appendChild(empty)
 
@@ -58,6 +63,7 @@ export function createVirtualTable(options: VirtualTableOptions): VirtualTable {
   let cellWidth = minColumnWidth
   let effectiveRowHeight = rowHeight
   let fontSize = baseFontSize
+  let currentRow: number | null = options.currentRow ?? null
 
   const applyMetrics = (): void => {
     cellWidth = minColumnWidth * scale
@@ -80,12 +86,12 @@ export function createVirtualTable(options: VirtualTableOptions): VirtualTable {
     cell.style.fontSize = `${fontSize}px`
     if (isHeader) {
       cell.style.fontWeight = '600'
-      cell.style.color = '#24292f'
-      cell.style.borderBottom = '2px solid #d0d7de'
+      cell.style.color = 'var(--pf-ink, #1f2328)'
+      cell.style.borderBottom = '2px solid var(--pf-line, #d0d7de)'
     } else {
-      cell.style.borderBottom = '1px solid #eaeef2'
+      cell.style.borderBottom = '1px solid var(--pf-line-soft, #eaeef2)'
     }
-    cell.style.borderRight = '1px solid #eaeef2'
+    cell.style.borderRight = '1px solid var(--pf-line-soft, #eaeef2)'
     cell.textContent = text
     cell.title = text
     return cell
@@ -129,6 +135,9 @@ export function createVirtualTable(options: VirtualTableOptions): VirtualTable {
       row.style.right = '0'
       row.style.height = `${effectiveRowHeight}px`
       row.style.display = 'flex'
+      if (currentRow === rowIndex) {
+        row.style.background = 'var(--pf-accent-tint, rgba(37, 99, 235, 0.1))'
+      }
 
       for (let col = 0; col < columnCount; col += 1) {
         try {
@@ -169,6 +178,17 @@ export function createVirtualTable(options: VirtualTableOptions): VirtualTable {
     })
   }
 
+  const scrollRowIntoView = (row: number): void => {
+    const target = Math.max(0, Math.min(options.rowCount - 1, row))
+    const top = Math.max(
+      0,
+      target * effectiveRowHeight - viewport.clientHeight / 2 + effectiveRowHeight / 2
+    )
+    viewport.scrollTop = top
+    currentRow = target
+    renderWindow()
+  }
+
   viewport.addEventListener('scroll', scheduleRender)
   const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleRender) : null
   resizeObserver?.observe(viewport)
@@ -186,6 +206,13 @@ export function createVirtualTable(options: VirtualTableOptions): VirtualTable {
       if (columnCount === 0) return scale
       const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, availableWidth / (columnCount * minColumnWidth)))
       return nextScale
+    },
+    setCurrentRow: (row: number | null) => {
+      currentRow = row
+      renderWindow()
+    },
+    scrollRowIntoView: (row: number) => {
+      scrollRowIntoView(row)
     },
     destroy: () => {
       if (frame) window.cancelAnimationFrame(frame)

@@ -60,12 +60,6 @@ export interface SheetNavigation {
   switchSheet(name: string): void
 }
 
-export interface SearchControls {
-  search(query: string): void
-  readonly resultCount?: number
-  clear?(): void
-}
-
 export interface TextControls {
   readonly canCopy: boolean
   copy(): void
@@ -107,7 +101,6 @@ export interface PreviewAdapter {
   readonly fit?: FitControls
   readonly rotate?: RotateControls
   readonly sheets?: SheetNavigation
-  readonly search?: SearchControls
   readonly text?: TextControls
   readonly singlePage?: SinglePageMode
   readonly thumbnails?: ThumbnailControls
@@ -116,6 +109,10 @@ export interface PreviewAdapter {
 }
 
 export interface PreviewActions {
+  /** Name of the file being previewed (shown in the header chrome). */
+  readonly fileName: string
+  /** Short human format label (e.g. "PDF", "Spreadsheet"). */
+  readonly fileTypeLabel: string
   readonly canZoom: boolean
   readonly canDownload: boolean
   readonly canFullscreen: boolean
@@ -131,7 +128,6 @@ export interface PreviewActions {
   readonly fit?: FitControls
   readonly rotate?: RotateControls
   readonly sheets?: SheetNavigation
-  readonly search?: SearchControls
   readonly text?: TextControls
   readonly singlePage?: SinglePageMode
   readonly thumbnails?: ThumbnailControls

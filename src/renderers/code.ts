@@ -36,7 +36,11 @@ export class CodeRenderer implements Renderer {
 
     const view = createMonacoView(monaco, host, text, language)
 
-    this.attachments.set(container, { destroy: () => view.dispose() })
+    this.attachments.set(container, {
+      destroy: () => {
+        view.dispose()
+      },
+    })
 
     return {
       canZoom: true,

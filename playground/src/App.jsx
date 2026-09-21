@@ -9,6 +9,13 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+const card = {
+  border: '1px solid #dce1e8',
+  borderRadius: '10px',
+  background: '#ffffff',
+  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
+}
+
 export default function App() {
   const [file, setFile] = useState(null)
   const [status, setStatus] = useState('idle') // idle | loading | success | error
@@ -51,7 +58,16 @@ export default function App() {
   }
 
   return (
-    <main style={{ maxWidth: '900px', margin: '0 auto', padding: '24px' }}>
+    <main
+      style={{
+        maxWidth: '900px',
+        margin: '0 auto',
+        padding: '24px',
+        minHeight: '100vh',
+        background: '#eef1f6',
+        color: '#172033',
+      }}
+    >
       <h1 style={{ fontSize: '20px', margin: '0 0 16px' }}>preview-file playground</h1>
 
       <section
@@ -61,17 +77,12 @@ export default function App() {
           alignItems: 'center',
           flexWrap: 'wrap',
           padding: '12px',
-          border: '1px solid #ddd',
-          borderRadius: '6px',
-          background: '#fff',
+          ...card,
         }}
       >
         <label>
           Select file:{' '}
-          <input
-            type="file"
-            onChange={handleFileChange}
-          />
+          <input type="file" onChange={handleFileChange} />
         </label>
         <button type="button" onClick={handlePreview} disabled={!file || status === 'loading'}>
           Preview
@@ -81,7 +92,7 @@ export default function App() {
         </button>
       </section>
 
-      <section style={{ marginTop: '12px', padding: '12px', border: '1px solid #ddd', borderRadius: '6px', background: '#fff' }}>
+      <section style={{ marginTop: '12px', padding: '12px', ...card }}>
         <h2 style={{ fontSize: '14px', margin: '0 0 8px' }}>Selected file</h2>
         {file ? (
           <ul style={{ margin: 0, paddingLeft: '18px' }}>
@@ -95,7 +106,16 @@ export default function App() {
       </section>
 
       {status === 'error' && (
-        <section style={{ marginTop: '12px', padding: '12px', border: '1px solid #cf222e', borderRadius: '6px', background: '#fff5f5', color: '#cf222e' }}>
+        <section
+          style={{
+            marginTop: '12px',
+            padding: '12px',
+            border: '1px solid #cf222e',
+            borderRadius: '10px',
+            background: '#fff5f5',
+            color: '#cf222e',
+          }}
+        >
           <strong>Error:</strong> {error}
         </section>
       )}
@@ -112,10 +132,11 @@ export default function App() {
           style={{
             position: 'absolute',
             inset: '0',
-            border: '1px solid #ddd',
-            borderRadius: '6px',
+            border: '1px solid #dce1e8',
+            borderRadius: '10px',
             overflow: 'hidden',
-            background: '#fff',
+            background: '#ffffff',
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
           }}
         />
         {status === 'idle' && (

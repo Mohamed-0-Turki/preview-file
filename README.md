@@ -1,11 +1,12 @@
 # preview-file
 
-A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, PowerPoint, Excel, CSV, source code, text, image and archive (ZIP, 7z, RAR, TAR, TAR.GZ/TGZ, and compressed streams) files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, native slide rendering for PowerPoint, spreadsheet-style data views for Excel/CSV, Monaco-powered syntax highlighting for source code, an in-place archive file browser that previews the files inside it, and a sticky top toolbar that behaves like a navbar and only shows the controls the active preview supports.
+A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, PowerPoint, Excel, CSV, source code, text, image and archive (ZIP, 7z, RAR, TAR, TAR.GZ/TGZ, and compressed streams) files into any element and get a rich, self-managed preview — real page geometry for PDF/Word, native slide rendering for PowerPoint, spreadsheet-style data views for Excel/CSV, Monaco-powered syntax highlighting for source code, an in-place archive file browser that previews the files inside it, and a Liquid Glass multi-side control chrome that only shows the controls the active preview supports.
 
 - **No framework required.** Vanilla JS is a first-class citizen; React, Vue, Svelte and Angular use the exact same `preview()` call.
-- **Capability-driven controls.** Each previewer declares what it can do and the toolbar renders exactly that (zoom, pages, sheets, search, rotate, thumbnails, lens, download, fullscreen).
+- **Capability-driven controls.** Each previewer declares what it can do and the chrome renders exactly that (zoom, pages, sheets, rotate, thumbnails, lens, download, fullscreen) across the top, left, right and bottom edges.
 - **Lazy by default.** Heavy engines (pdf.js, docx-preview, SheetJS, Monaco Editor) are loaded on demand, only when their format is actually previewed.
 - **Layout-free.** The library renders inside whatever element you provide. It never opens a modal and never owns your page.
+- **Light by design.** A single shared `--pf-*` Liquid Glass token set drives every preview; no dark mode, no theme API to configure.
 
 ---
 
@@ -13,18 +14,18 @@ A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, 
 
 | Type | Extensions | Preview | Notes |
 | --- | --- | --- | --- |
-| PDF | `.pdf` | Rendered pages with real A4 geometry, page shadows, continuous / single-page mode, go-to-page | pdf.js |
+| PDF | `.pdf` | Rendered pages with real A4 geometry, page shadows, continuous / single-page mode, go-to-page, rotate | pdf.js |
 | Word | `.docx`, `.docm`, `.dotx`, `.dotm` | Paginated document with headings, tables and embedded images | docx-preview |
 | Word (legacy) | `.doc`, `.dot` | In-preview fallback card with a Download button | Binary format not rendered |
 | PowerPoint | `.pptx`, `.pptm`, `.potx`, `.potm`, `.ppsx`, `.ppsm` | Native slide rendering with layout, colors, shapes, charts, tables and embedded images; slides-as-pages navigation, zoom, fit, continuous / single-page mode | pptx-viewer |
 | PowerPoint (legacy / OpenDocument) | `.ppt`, `.pps`, `.pot`, `.odp` | In-preview fallback card with a Download button | Binary / OpenDocument formats not rendered in-browser |
-| Excel | `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.xltx`, `.xltm`, `.xlt` | Sheet tabs, navigation, search | SheetJS |
-| CSV | `.csv` | Virtualized table, sheet-style navigation, search | Built-in (no dependency) |
+| Excel | `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.xltx`, `.xltm`, `.xlt` | Sheet tabs, navigation, frozen headers, virtualized grid | SheetJS |
+| CSV | `.csv` | Virtualized table, sheet-style navigation | Built-in (no dependency) |
 | Text | `.txt`, `.log` | Copy, word-wrap toggle | Built-in |
 | Code | `.js`, `.tsx`, `.py`, `.json`, `.hbs`, `.ps1`, `.cshtml`, `.tf`, … any file with an extension or name Monaco recognizes — all **91** Monaco languages, plus filenames like `Dockerfile`, `Gemfile`, `tsconfig.json` | Read-only Monaco editor: syntax highlighting, folding, line numbers, zoom, copy, word-wrap | Monaco (CDN, lazy) |
 | Markdown | `.md`, `.markdown`, `.mkd`, `.mdwn`, … | GitHub-style rendered document (tables, task lists, highlighted fenced code) with a **Preview ⇄ Code** toggle | Built-in (`marked`, lazy) |
 | Images | `.jpg`, `.png`, `.gif`, `.webp`, `.svg`, `.avif`, `.bmp`, `.apng` | Zoom/fit, inspection loupe, rotate | Built-in |
-| Archive | `.zip`, `.zipx`, `.7z`, `.rar`, `.cab`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz`, `.tar.xz`, `.txz`, `.tar.zst`, `.tzst`, `.gz`, `.bz2`, `.xz`, `.zst`, `.ar`, `.deb`, `.cpio` | File-browser view: folders, breadcrumbs, back/forward/root, search, per-file download, password unlock; opening a file previews it with the normal pipeline | Built-in (`@zip.js/zip.js`, `fflate`, `7z-wasm`) |
+| Archive | `.zip`, `.zipx`, `.7z`, `.rar`, `.cab`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz`, `.tar.xz`, `.txz`, `.tar.zst`, `.tzst`, `.gz`, `.bz2`, `.xz`, `.zst`, `.ar`, `.deb`, `.cpio` | Two-pane file explorer: folders, breadcrumbs, back/forward/up/root, per-file download, password unlock; opening a file previews it (with that file's own chrome) inside the right pane | Built-in (`@zip.js/zip.js`, `fflate`, `7z-wasm`) |
 
 Unsupported or oversized files render a retriable error card (with a Download button) inside the container instead of breaking your layout. Detection is table-driven from one shared format descriptor (`src/archives/formats.ts`), so any future archive type is added in that table plus one provider case — no MIME special-casing. RAR and CAB files can be browsed (and their single and extracted members opened/downloaded) thanks to 7-Zip's decoders embedded via `7z-wasm`, but *creating* them is not possible here and they were verified by signature.
 
@@ -266,6 +267,19 @@ shows the error card — that failure is the signal to configure `setMonacoBaseU
 
 ---
 
+## Look & feel
+
+Every preview renders from a single shared **Liquid Glass** token set (`--pf-*`:
+surfaces, ink, accent, chrome glass, segments, hover and panel shadows), injected
+once per page scoped to `.pf-root` and used uniformly by the chrome, the renderers
+and the state/message cards. There is exactly one light palette — no dark mode
+and no theme API to configure. Renderers and custom controls source colors from
+`var(--pf-*, fallback)` so a custom page theme can restyle the preview by
+overriding the tokens on `.pf-root`. See [ADR-0014](docs/adr/0014-viewer-redesign.md)
+for the design rationale.
+
+---
+
 ## Markdown preview
 
 Markdown files (`.md`, `.markdown`, `.mkd`, … — MIME `text/markdown`) open as a
@@ -297,17 +311,15 @@ CPIO is hand-rolled, and Zip/fflate cover the rest. The archive's own navigation
 renders inside the preview stage, while the outer toolbar keeps its **File → Download**
 action for saving the *original* archive.
 
-- **Folders & files** — the archive is listed like a file manager: directories first,
-  virtualized rows for large archives, size column, per-file Download button, and a root
-  button that returns to the top of the archive at any depth.
-- **Breadcrumbs** — every level of the current path is clickable; a **back / forward**
-  history works across folders *and* individual files.
-- **Search** — filters the current folder by name.
+- **Folders & files** — the archive is listed like a file manager in a dedicated left
+  tree pane: directories first, virtualized rows for large archives, size column,
+  per-file Download button, and **back / forward / up / root** navigation with
+  clickable breadcrumbs. The right pane shows an empty-state until you open a file.
 - **Preview inside** — clicking a file pipes its bytes through the normal `preview()`
   pipeline, so a `.pdf`, `.md`, `.cs`, `.png` … in an archive opens with that file's full
-  toolbar (zoom, pages, download of that inner file), and back/forward/navigating away
-  tears the inner preview down automatically. Symbolic and hard links show a note with
-  their target instead of recursing.
+  toolbar (zoom, pages, download of that inner file) **inside the right pane**, and
+  back/forward/navigating away tears the inner preview down automatically. Symbolic and
+  hard links show a note with their target instead of recursing.
 - **Password-protected archives** — encrypted ZIP entries decrypt once the password is
   entered in the unlock bar (ZIP AES first, then ZipCrypto); encrypted `.7z`/`.rar`
   members extract through 7-Zip with the same password. Two shapes are handled: most
@@ -320,22 +332,52 @@ action for saving the *original* archive.
 
 ---
 
-## The toolbar & previewer capabilities
+## The chrome & previewer capabilities
 
-After a successful render, `preview()` mounts a sticky toolbar pinned to the top of the preview container. It behaves like a normal website navbar: it is part of the preview layout (never an overlay), stays visible while the preview content scrolls beneath it, and uses `position: sticky`, so it moves naturally with the page instead of being fixed to the browser viewport. Only the controls the active previewer actually implements appear:
+After a successful render, `preview()` mounts a **multi-side control chrome** inside the preview container: `.pf-controls` → `.pf-top` / `.pf-body` / `.pf-bottom`, with the body a row of `[left rail] [stage] [right rail]`. Every surface is an in-flow flex sibling of the stage — nothing is sticky, fixed or an overlay, so controllers can never cover the content (this is what lets a file opened *inside an archive* mount its own full chrome without overlapping the archive's navigation). Only the controls the active previewer actually implements appear; empty regions collapse away:
 
+**Top bar** — document context + once-per-session actions:
+
+- **File** — file icon + ellipsized file name + format badge
 - **Mode** — Preview ⇄ Code toggle (Markdown)
-- **Pages** — previous / next / go-to-page (PDF, Word, PowerPoint)
-- **View** — continuous ↔ single page (PDF, Word, PowerPoint), thumbnails, fullscreen (all)
-- **Zoom** — zoom in/out, reset, fit width / fit page / actual size, live % indicator
-- **Rotate** — clockwise / counter-clockwise, exact-degree input, reset rotation (PDF, images)
-- **Sheet** — sheet tabs (Excel, CSV)
-- **Search** — in-sheet/in-document search with result count (Excel, CSV, PDF)
-- **Text** — copy, word-wrap (code, text)
-- **Lens** — magnifier magnification & size (images)
-- **File** — download (all)
+- **Text** — copy, word-wrap toggle (text, code, Markdown)
+- **Download** — pinned to the right; always reachable
 
-On narrow containers the least-critical groups collapse into a **⋯** overflow menu while Pages, Zoom, View and Sheet stay pinned to the bar, so rotation and view controls remain one tap away. The toolbar is keyboard-accessible (`radiogroup` segments with roving tabindex, arrow keys, visible focus rings) and honors `prefers-reduced-motion`.
+**Left rail** —
+
+- **Sheet** — sheet tabs (Excel, CSV)
+- **Thumbnails** — toggle (PDF, Word, PowerPoint)
+
+**Right rail** —
+
+- **Zoom** — zoom in/out, actual size, live % chip
+- **Fit** — fit width / fit page
+- **Rotate** — clockwise / counter-clockwise / exact-degree input / reset (PDF, PowerPoint, images)
+- **View** — continuous ↔ single page; **Fullscreen**
+- **Lens** — inspection loupe (images)
+
+**Bottom bar** — live document state:
+
+- **Pages** — previous / next / go-to-page (PDF, Word, PowerPoint)
+
+There is **no overflow ⋯ menu**: the top/bottom bars scroll horizontally and the
+rails wrap on narrow surfaces, so every control stays reachable on every screen.
+The chrome is keyboard-accessible (`radiogroup` segments with roving tabindex,
+arrow keys, `aria-pressed` toggles, visible focus rings), uses ≥ 38 px touch
+targets on coarse pointers, hides group labels ≤ 480 px, and honors
+`prefers-reduced-motion`.
+
+### Archives: two-pane explorer
+
+Opening an archive renders a split explorer instead of a single list: the **left
+tree pane** owns all archive chrome (back / forward / up / root navigation,
+breadcrumbs, format badge, the virtualized entry list with sizes and per-file
+download, and a footer with counts); the **right pane** hosts the nested preview
+of whichever file you open, and shows an empty-state placeholder when nothing is
+open. The nested file mounts through the normal `preview()` pipeline — its own
+chrome lives entirely inside the right pane, a flex sibling of the tree, so the
+two control surfaces never overlap. On phones the tree becomes a slide-in drawer
+with an always-visible "show file list" toggle in the pane.
 
 ---
 
@@ -580,7 +622,7 @@ interface Renderer {
 }
 ```
 
-The full capability contract returned by renderers is `PreviewAdapter` (see [`src/controls/types.ts`](src/controls/types.ts)): optional `canZoom`, `canDownload`, `canFullscreen`, `zoomPercent`, `zoomIn/Out/reset`, `download`, `fullscreen`, plus `lens`, `pages`, `fit`, `rotate`, `sheets`, `search`, `text`, `singlePage`, `thumbnails`, `viewMode` (Preview ⇄ Code).
+The full capability contract returned by renderers is `PreviewAdapter` (see [`src/controls/types.ts`](src/controls/types.ts)): optional `canZoom`, `canDownload`, `canFullscreen`, `zoomPercent`, `zoomIn/Out/reset`, `download`, `fullscreen`, plus `lens`, `pages`, `fit`, `rotate`, `sheets`, `text`, `singlePage`, `thumbnails`, `viewMode` (Preview ⇄ Code) — see [The chrome & previewer capabilities](#the-chrome--previewer-capabilities).
 
 ---
 
@@ -694,10 +736,12 @@ src/
     monaco-types.ts   # self-contained typing shim (monaco-editor is devDependency only)
     interaction/    # image magnification (loupe) and zoom/pan
     virtual-table.ts# shared virtualized grid (Excel & CSV) + table transforms
-  controls/         # sticky capability-driven toolbar (incl. the Mode Preview ⇄ Code group)
+  controls/         # capability-driven chrome (top/left/right/bottom multi-side bars)
   utils/            # framework-agnostic helpers (registry, detectType, parseCsv, …)
+  utils/theme.ts    # single .pf-root-scoped --pf-* Liquid Glass token set (light only)
 scripts/
   generate-monaco-languages.mjs # regenerate the routing index from Monaco's own registry
+  build-icons.mjs               # regenerate src/icons/icons.ts + copy SVGs into dist/
 docs/
   adr/              # architecture decision records (why the design is what it is)
   templates/        # copy-paste scaffolding for new previewers/renderers/controls

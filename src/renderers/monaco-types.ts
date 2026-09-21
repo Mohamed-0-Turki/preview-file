@@ -61,6 +61,40 @@ export interface MonacoTextModel {
   getLinesContent(): readonly string[]
   getLineCount(): number
   getLanguageId(): string
+  /** Case/whole-word/regex flags are set by the caller; `searchScope` is null. */
+  findMatches(
+    searchString: string,
+    isRegex: boolean,
+    matchCase: boolean,
+    wholeWord: boolean,
+    searchScope: null,
+    isSensitive: boolean
+  ): MonacoFindMatch[]
+}
+
+export interface MonacoRange {
+  readonly startLineNumber: number
+  readonly startColumn: number
+  readonly endLineNumber: number
+  readonly endColumn: number
+}
+
+export interface MonacoFindMatch {
+  readonly range: MonacoRange
+  readonly matches: readonly string[]
+}
+
+export interface MonacoDecoration {
+  readonly range: MonacoRange
+  readonly options: {
+    readonly className?: string
+    readonly inlineClassName?: string
+  }
+}
+
+export interface MonacoDecorationsCollection {
+  set(decorations: MonacoDecoration[]): void
+  clear(): void
 }
 
 export interface MonacoEditorInstance {
@@ -70,6 +104,8 @@ export interface MonacoEditorInstance {
   getAction(id: string): MonacoEditorAction | null
   layout(dimension?: { width: number; height: number }): void
   getModel(): MonacoTextModel | null
+  createDecorationsCollection(decorations?: MonacoDecoration[]): MonacoDecorationsCollection
+  revealRangeInCenter(range: MonacoRange): void
 }
 
 export interface MonacoLanguages {

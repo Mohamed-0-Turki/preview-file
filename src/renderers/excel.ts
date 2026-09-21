@@ -56,7 +56,7 @@ export class ExcelRenderer implements Renderer {
     stage.style.inset = '0'
     stage.style.display = 'flex'
     stage.style.flexDirection = 'column'
-    stage.style.background = '#ffffff'
+    stage.style.background = 'var(--pf-surface, #ffffff)'
     container.appendChild(stage)
 
     const sheetCache = new Map<string, SheetData>()
@@ -89,55 +89,24 @@ export class ExcelRenderer implements Renderer {
 
     let activeSheet = sheetNames[0] as string
     let scale = 1
-    let query = ''
-    let filtered: number[] | null = null
     let table = buildTable()
-
-    const visibleRows = (): number[] => {
-      if (!filtered) return currentData().rowCount > 0 ? Array.from({ length: currentData().rowCount }, (_, i) => i) : []
-      return filtered
-    }
 
     function currentData(): SheetData {
       return getSheetData(activeSheet)
     }
 
-    function resetFilter(): void {
-      if (!query.trim()) {
-        filtered = null
-        return
-      }
-      const needle = query.trim().toLowerCase()
-      const data = currentData()
-      const matches: number[] = []
-      for (let r = 0; r < data.rowCount; r += 1) {
-        for (let c = 0; c < data.columnLabels.length; c += 1) {
-          if (data.getCell(r, c).toLowerCase().includes(needle)) {
-            matches.push(r)
-            break
-          }
-        }
-      }
-      filtered = matches
-    }
-
     function rebuildTable(): void {
-      resetFilter()
-      const index = visibleRows()
       table.destroy()
-      table = buildTable(index)
+      table = buildTable()
       table.setScale(scale)
     }
 
-    function buildTable(index?: number[]): ReturnType<typeof createVirtualTable> {
+    function buildTable(): ReturnType<typeof createVirtualTable> {
       const data = currentData()
       return createVirtualTable({
         columnLabels: data.columnLabels,
-        rowCount: index ? index.length : data.rowCount,
-        getCell: (row, col) => {
-          const sourceRow = index ? (index[row] as number) : row
-          return data.getCell(sourceRow, col)
-        },
+        rowCount: data.rowCount,
+        getCell: (row, col) => data.getCell(row, col),
       })
     }
 
@@ -179,19 +148,6 @@ export class ExcelRenderer implements Renderer {
         switchSheet: (name: string) => {
           if (!sheetNames.includes(name) || name === activeSheet) return
           activeSheet = name
-          rebuildTable()
-        },
-      },
-      search: {
-        search: (text: string) => {
-          query = text
-          rebuildTable()
-        },
-        get resultCount() {
-          return visibleRows().length
-        },
-        clear: () => {
-          query = ''
           rebuildTable()
         },
       },

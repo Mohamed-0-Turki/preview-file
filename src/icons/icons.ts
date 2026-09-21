@@ -144,6 +144,55 @@ export const ICONS = {
 >
   <path d="m9 18 6-6-6-6" />
 </svg>`,
+  'chevron-up': `<!-- @license lucide-static v0.460.0 - ISC -->
+<svg
+  class="lucide lucide-chevron-up"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <path d="m18 15-6-6-6 6" />
+</svg>`,
+  'chevron-down': `<!-- @license lucide-static v0.460.0 - ISC -->
+<svg
+  class="lucide lucide-chevron-down"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <path d="m6 9 6 6 6-6" />
+</svg>`,
+  'arrow-up': `<!-- @license lucide-static v0.460.0 - ISC -->
+<svg
+  class="lucide lucide-arrow-up"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <path d="m5 12 7-7 7 7" />
+  <path d="M12 19V5" />
+</svg>`,
   'download': `<!-- @license lucide-static v0.460.0 - ISC -->
 <svg
   class="lucide lucide-download"
@@ -236,6 +285,26 @@ export const ICONS = {
   <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
   <path d="M14 2v4a2 2 0 0 0 2 2h4" />
 </svg>`,
+  'file-text': `<!-- @license lucide-static v0.460.0 - ISC -->
+<svg
+  class="lucide lucide-file-text"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+  <path d="M10 9H8" />
+  <path d="M16 13H8" />
+  <path d="M16 17H8" />
+</svg>`,
   'file-stack': `<!-- @license lucide-static v0.460.0 - ISC -->
 <svg
   class="lucide lucide-file-stack"
@@ -271,6 +340,39 @@ export const ICONS = {
 >
   <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
 </svg>`,
+  'folder-open': `<!-- @license lucide-static v0.460.0 - ISC -->
+<svg
+  class="lucide lucide-folder-open"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2" />
+</svg>`,
+  'panel-left': `<!-- @license lucide-static v0.460.0 - ISC -->
+<svg
+  class="lucide lucide-panel-left"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <rect width="18" height="18" x="3" y="3" rx="2" />
+  <path d="M9 3v18" />
+</svg>`,
   'maximize': `<!-- @license lucide-static v0.460.0 - ISC -->
 <svg
   class="lucide lucide-maximize"
@@ -289,6 +391,25 @@ export const ICONS = {
   <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
   <path d="M3 16v3a2 2 0 0 0 2 2h3" />
   <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+</svg>`,
+  'minimize': `<!-- @license lucide-static v0.460.0 - ISC -->
+<svg
+  class="lucide lucide-minimize"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+  <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+  <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+  <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
 </svg>`,
   'ellipsis': `<!-- @license lucide-static v0.460.0 - ISC -->
 <svg
@@ -413,6 +534,46 @@ export const ICONS = {
 >
   <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+</svg>`,
+  'sun': `<!-- @license lucide-static v0.460.0 - ISC -->
+<svg
+  class="lucide lucide-sun"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <circle cx="12" cy="12" r="4" />
+  <path d="M12 2v2" />
+  <path d="M12 20v2" />
+  <path d="m4.93 4.93 1.41 1.41" />
+  <path d="m17.66 17.66 1.41 1.41" />
+  <path d="M2 12h2" />
+  <path d="M20 12h2" />
+  <path d="m6.34 17.66-1.41 1.41" />
+  <path d="m19.07 4.93-1.41 1.41" />
+</svg>`,
+  'moon': `<!-- @license lucide-static v0.460.0 - ISC -->
+<svg
+  class="lucide lucide-moon"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
 </svg>`,
 } as const
 
