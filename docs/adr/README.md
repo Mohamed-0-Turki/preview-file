@@ -21,7 +21,7 @@ decision changes, write a new ADR that supersedes it.
 | [ADR-0011](0011-framework-agnostic-package.md) | Framework-agnostic single package; no monorepo, no framework-specific entry points |
 | [ADR-0012](0012-presentation-preview.md) | Presentation preview: external DOM/SVG renderer (`pptx-viewer`) on the paged-document controller; legacy formats fall back |
 | [ADR-0013](0013-monaco-code-preview.md) | Source-code preview: Monaco Editor loaded lazily from a pinned AMD CDN build (configurable base URL), never bundled |
-| [ADR-0014](0014-viewer-redesign.md) | Viewer redesign: multi-side glass chrome (top/left/right/bottom), zero-overlap guarantee, no search/no dark mode, two-pane archive explorer |
+| [ADR-0014](0014-viewer-redesign.md) | Viewer redesign: multi-side glass chrome (top/left/right/bottom), zero-overlap guarantee, no search/no dark mode, explorer-only archives |
 
 ## Status values
 

@@ -1,5 +1,8 @@
 import type { PreviewActions } from './types.js'
 import { ICONS as LUCIDE } from '../icons/icons.js'
+import { ensureGlassStyles } from './glass-styles.js'
+import type { SegmentedResult } from './ui.js'
+import { iconEl, makeButton, makeDivider, makeGroup, makeSegmented } from './ui.js'
 
 /*
  * The preview control surface.
@@ -10,12 +13,13 @@ import { ICONS as LUCIDE } from '../icons/icons.js'
  *   - Top bar (.pf-top): the document context — file info + format badge on the
  *     left, view-mode / text actions beside it, and the download action on the
  *     right. Pinned document-level actions.
- *   - Left rail (.pf-rail--left): sheet navigation (spreadsheets) and the
- *     thumbnail/sidebar toggle — things that sit next to the content.
+ *   - Left rail (.pf-rail--left): content-side auxiliary navigation (e.g. a
+ *     thumbnail/sidebar toggle) — things that sit next to the content.
  *   - Right rail (.pf-rail--right): zoom, fit, rotate, single/continuous and
- *     fullscreen plus the image lens — everything that changes how the content
- *     is seen.
- *   - Bottom bar (.pf-bottom): page navigation (prev / page input / total / next).
+ *     fullscreen — everything that changes how the content is seen.
+ *   - Bottom bar (.pf-bottom): content-specific navigation and tools — page
+ *     navigation, spreadsheet sheet tabs, and the image magnifier/zoom
+ *     controller — placed where the user's hands already are.
  *
  * Every surface is in normal flow — chrome is never an overlay and never uses
  * sticky positioning or z-index. Content scrolls inside the stage that sits
@@ -59,514 +63,6 @@ const ICONS = {
   wrap: LUCIDE['wrap-text'],
   thumbnails: LUCIDE['layout-grid'],
   file: LUCIDE['file-text'],
-}
-
-const GLASS_STYLE_ID = 'pf-glass-styles'
-
-const GLASS_CSS = `
-.pf-controls {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  color: var(--pf-ink, #172033);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  font-size: 12px;
-  -webkit-font-smoothing: antialiased;
-}
-.pf-controls *, .pf-controls *::before, .pf-controls *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-/* Lucide icons are authored on a 24px canvas; render them uniformly at 18px.
-   They use stroke="currentColor", so they inherit the control's color. */
-.pf-controls svg {
-  width: 18px;
-  height: 18px;
-  display: block;
-  flex: none;
-}
-/* Chrome regions: translucent glass surfaces that blur what scrolls behind
-   them, hairline borders, soft shadows. All in normal flow — never overlay. */
-.pf-top,
-.pf-bottom,
-.pf-rail {
-  background: var(--pf-glass, rgba(250, 251, 253, 0.72));
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-}
-.pf-top,
-.pf-bottom {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: 0 0 auto;
-  padding: 6px 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  box-shadow: var(--pf-glass-shadow, 0 1px 2px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8));
-  animation: pf-in 0.18s ease-out;
-}
-.pf-top {
-  border-bottom: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
-}
-.pf-bottom {
-  border-top: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
-  padding: 4px 10px;
-}
-.pf-top::-webkit-scrollbar,
-.pf-bottom::-webkit-scrollbar {
-  display: none;
-}
-@keyframes pf-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: none; }
-}
-.pf-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: row;
-}
-.pf-body__middle {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  position: relative;
-}
-.pf-rail {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 6px;
-  min-width: 0;
-}
-.pf-rail--left {
-  border-right: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
-}
-.pf-rail--right {
-  border-left: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
-}
-.pf-rail .pf-group {
-  align-items: center;
-  width: 100%;
-}
-.pf-rail .pf-row {
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-}
-.pf-group {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 0 2px;
-}
-.pf-group__label {
-  padding: 0 6px;
-  padding-top: 2px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  line-height: 1;
-  color: var(--pf-ink-faint, #76808e);
-  user-select: none;
-  white-space: nowrap;
-}
-.pf-rail .pf-group__label {
-  text-align: center;
-  width: 100%;
-}
-.pf-group__label:empty { display: none; }
-.pf-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.pf-spacer {
-  flex: 1 1 auto;
-  min-width: 6px;
-}
-.pf-divider {
-  width: 1px;
-  align-self: stretch;
-  margin: 10px 3px;
-  background: linear-gradient(180deg, transparent, var(--pf-glass-line, rgba(15, 23, 42, 0.12)), transparent);
-}
-.pf-rail .pf-divider {
-  width: auto;
-  height: 1px;
-  align-self: stretch;
-  margin: 2px 0;
-  background: linear-gradient(90deg, transparent, var(--pf-glass-line-strong, rgba(15, 23, 42, 0.12)), transparent);
-}
-/* File context: icon + ellipsized name + format badge. */
-.pf-fileinfo {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 0 4px;
-  max-width: 260px;
-}
-.pf-fileinfo__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  flex: 1 1 auto;
-  font-weight: 600;
-  color: var(--pf-ink, #172033);
-}
-.pf-fileinfo__badge {
-  flex: 0 0 auto;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 2px 7px;
-  border-radius: 999px;
-  color: var(--pf-accent-strong, #1d4ed8);
-  background: var(--pf-accent-tint, rgba(37, 99, 235, 0.1));
-  border: 1px solid var(--pf-accent-ring, rgba(37, 99, 235, 0.45));
-}
-.pf-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  flex: none;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease, transform 0.06s ease;
-}
-.pf-btn:hover {
-  background: var(--pf-hover-strong, rgba(255, 255, 255, 0.8));
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
-}
-.pf-btn:active {
-  transform: scale(0.93);
-}
-.pf-btn:focus-visible {
-  outline: 2px solid var(--pf-accent-ring, rgba(37, 99, 235, 0.45));
-  outline-offset: 1px;
-}
-.pf-btn--on {
-  background: var(--pf-accent-tint, rgba(37, 99, 235, 0.1));
-  color: var(--pf-accent-strong, #1d4ed8);
-  border-color: var(--pf-accent-ring, rgba(37, 99, 235, 0.45));
-}
-.pf-btn--on:hover {
-  background: var(--pf-accent-tint, rgba(37, 99, 235, 0.16));
-}
-.pf-btn--chip {
-  width: auto;
-  padding: 0 8px;
-  min-width: 42px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--pf-ink-soft, #46505f);
-}
-.pf-txt {
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
-  color: var(--pf-ink-soft, #46505f);
-  white-space: nowrap;
-}
-.pf-input {
-  height: 30px;
-  min-width: 0;
-  border-radius: 9px;
-  border: 1px solid var(--pf-seg-border, rgba(15, 23, 42, 0.08));
-  background: var(--pf-seg-bg, rgba(255, 255, 255, 0.5));
-  padding: 0 6px;
-  color: var(--pf-ink, #172033);
-  font: inherit;
-  font-size: 12px;
-  text-align: center;
-  outline: none;
-  -moz-appearance: textfield;
-  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
-}
-.pf-input::-webkit-outer-spin-button,
-.pf-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.pf-input::placeholder {
-  color: var(--pf-ink-faint, #76808e);
-}
-.pf-input:hover {
-  border-color: var(--pf-glass-line, rgba(15, 23, 42, 0.2));
-}
-.pf-input:focus {
-  border-color: var(--pf-accent-ring, rgba(37, 99, 235, 0.45));
-  background: var(--pf-hover-strong, rgba(255, 255, 255, 0.9));
-  box-shadow: 0 0 0 3px var(--pf-accent-tint, rgba(37, 99, 235, 0.14));
-}
-.pf-input--page {
-  width: 34px;
-  padding: 0 2px;
-}
-.pf-input--rotate {
-  width: 56px;
-  padding: 0 4px;
-}
-.pf-seg {
-  display: flex;
-  gap: 2px;
-  align-items: center;
-  padding: 2px;
-  border-radius: 10px;
-  background: var(--pf-seg-bg, rgba(255, 255, 255, 0.5));
-  border: 1px solid var(--pf-seg-border, rgba(15, 23, 42, 0.08));
-}
-.pf-seg--stack {
-  flex-direction: column;
-  align-items: stretch;
-  width: 132px;
-  max-width: 46vw;
-}
-.pf-seg--stack .pf-seg__btn {
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0 10px;
-}
-.pf-seg__btn {
-  height: 24px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--pf-ink-soft, #46505f);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease, transform 0.06s ease;
-}
-.pf-seg__btn:hover {
-  background: var(--pf-hover-strong, rgba(255, 255, 255, 0.8));
-}
-.pf-seg__btn:active {
-  transform: scale(0.95);
-}
-.pf-seg__btn:focus-visible {
-  outline: 2px solid var(--pf-accent-ring, rgba(37, 99, 235, 0.45));
-  outline-offset: 1px;
-}
-.pf-seg__btn--on {
-  background: var(--pf-seg-on, #ffffff);
-  color: var(--pf-accent-strong, #1d4ed8);
-  font-weight: 600;
-  box-shadow: var(--pf-seg-on-shadow, 0 1px 3px rgba(15, 23, 42, 0.14));
-}
-.pf-seg__btn--on:hover {
-  background: var(--pf-seg-on, #ffffff);
-}
-/* Narrow surfaces: the rails reflow beneath the stage as horizontal strips so
-   every control stays reachable — nothing folds into a hidden overflow menu. */
-@media (max-width: 760px) {
-  .pf-body {
-    flex-direction: column;
-  }
-  .pf-body__middle,
-  .pf-stage {
-    order: 0;
-  }
-  .pf-rail {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 8px 12px;
-  }
-  .pf-rail--left {
-    order: 1;
-    border-right: none;
-    border-top: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
-  }
-  .pf-rail--right {
-    order: 2;
-    border-left: none;
-    border-top: 1px solid var(--pf-glass-line, rgba(15, 23, 42, 0.08));
-  }
-  .pf-rail .pf-row {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  .pf-rail .pf-divider {
-    width: 1px;
-    height: auto;
-    align-self: stretch;
-    margin: 0 2px;
-  }
-  .pf-seg--stack {
-    width: auto;
-  }
-}
-@media (pointer: coarse) {
-  .pf-btn { width: 38px; height: 38px; }
-  .pf-btn--chip { height: 38px; }
-  .pf-input { height: 38px; }
-  .pf-seg__btn { height: 30px; padding: 0 12px; }
-  .pf-bottom .pf-btn { width: 34px; height: 34px; }
-}
-@media (max-width: 480px) {
-  .pf-group__label { display: none; }
-  .pf-fileinfo { max-width: 150px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .pf-top, .pf-bottom { animation: none; }
-  .pf-btn, .pf-seg__btn, .pf-input { transition: none; }
-}
-`
-
-function ensureGlassStyles(): void {
-  if (document.getElementById(GLASS_STYLE_ID)) return
-  const style = document.createElement('style')
-  style.id = GLASS_STYLE_ID
-  style.textContent = GLASS_CSS
-  document.head.appendChild(style)
-}
-
-interface SegmentedResult<T> {
-  el: HTMLDivElement
-  setActive: (value: T) => void
-}
-
-function makeButton(
-  content: string,
-  label: string,
-  onClick: () => void,
-  options: { pressed?: boolean; chip?: boolean } = {}
-): HTMLButtonElement {
-  const button = document.createElement('button')
-  button.type = 'button'
-  button.className = `pf-btn${options.pressed ? ' pf-btn--on' : ''}${options.chip ? ' pf-btn--chip' : ''}`
-  button.innerHTML = content
-  button.title = label
-  button.setAttribute('aria-label', label)
-  if (options.pressed !== undefined) {
-    button.setAttribute('aria-pressed', String(options.pressed))
-  }
-  button.addEventListener('click', () => {
-    try {
-      onClick()
-    } catch (error) {
-      console.error('[preview-file] control failed', error)
-    }
-  })
-  return button
-}
-
-function makeSegmented<T extends string | number>(
-  label: string,
-  options: readonly { label: string; value: T }[],
-  initial: T,
-  onChange: (value: T) => void,
-  stack = false
-): SegmentedResult<T> {
-  const container = document.createElement('div')
-  container.className = stack ? 'pf-seg pf-seg--stack' : 'pf-seg'
-  container.setAttribute('role', 'radiogroup')
-  container.setAttribute('aria-label', label)
-
-  let activeIndex = Math.max(0, options.findIndex((option) => option.value === initial))
-  const buttons: HTMLButtonElement[] = []
-
-  const apply = (index: number, focus: boolean): void => {
-    for (let i = 0; i < buttons.length; i += 1) {
-      const selected = i === index
-      const button = buttons[i] as HTMLButtonElement
-      button.classList.toggle('pf-seg__btn--on', selected)
-      button.setAttribute('aria-checked', String(selected))
-      button.tabIndex = selected ? 0 : -1
-    }
-    if (focus) buttons[index]?.focus()
-  }
-
-  const select = (index: number, focus = false): void => {
-    if (index === activeIndex && !focus) return
-    activeIndex = index
-    apply(index, focus)
-    onChange(options[index]?.value as T)
-  }
-
-  options.forEach((option, index) => {
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = 'pf-seg__btn'
-    button.textContent = option.label
-    button.title = `${label}: ${option.label}`
-    button.dataset.value = String(option.value)
-    button.tabIndex = index === activeIndex ? 0 : -1
-    button.addEventListener('click', () => select(index))
-    buttons.push(button)
-    container.appendChild(button)
-  })
-
-  container.addEventListener('keydown', (event) => {
-    if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(event.key)) return
-    event.preventDefault()
-    const delta = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1
-    select((activeIndex + delta + buttons.length) % buttons.length, true)
-  })
-
-  apply(activeIndex, false)
-
-  return {
-    el: container,
-    setActive: (value: T) => {
-      const index = options.findIndex((option) => option.value === value)
-      if (index >= 0) select(index)
-    },
-  }
-}
-
-function makeGroup(label: string): { wrapper: HTMLDivElement; row: HTMLDivElement } {
-  const wrapper = document.createElement('div')
-  wrapper.className = 'pf-group'
-  const labelEl = document.createElement('span')
-  labelEl.className = 'pf-group__label'
-  labelEl.textContent = label
-  wrapper.appendChild(labelEl)
-  const row = document.createElement('div')
-  row.className = 'pf-row'
-  wrapper.appendChild(row)
-  return { wrapper, row }
-}
-
-function makeDivider(): HTMLDivElement {
-  const divider = document.createElement('div')
-  divider.className = 'pf-divider'
-  divider.setAttribute('aria-hidden', 'true')
-  return divider
-}
-
-function iconEl(svg: string, title: string): HTMLSpanElement {
-  const el = document.createElement('span')
-  el.style.display = 'flex'
-  el.innerHTML = svg
-  el.setAttribute('aria-hidden', 'true')
-  el.title = title
-  return el
 }
 
 interface ToolbarRefs {
@@ -621,10 +117,36 @@ function buildToolbar(actions: PreviewActions): {
   const bottom = document.createElement('div')
   bottom.className = 'pf-bottom'
   bottom.setAttribute('role', 'toolbar')
-  bottom.setAttribute('aria-label', 'Document navigation')
+  bottom.setAttribute('aria-label', 'Preview navigation')
   root.appendChild(bottom)
 
   const refs = {} as ToolbarRefs
+
+  /* Zoom cluster (minus button / live % chip / plus / reset). Rendered in the
+     right rail for documents, spreadsheets and text; moved into the bottom
+     image controller for images so the image surface stays clean. */
+  const addZoomControls = (row: HTMLElement): void => {
+    row.appendChild(makeButton(ICONS.zoomOut, 'Zoom out', () => {
+      actions.zoomOut()
+      refresh()
+    }))
+    if (refs.zoomLabel === undefined) {
+      refs.zoomLabel = makeButton('', 'Current zoom — click to reset to the default view', () => {
+        actions.resetZoom()
+        refresh()
+      }, { chip: true })
+    }
+    refs.zoomLabel.dataset.lastZoom = ''
+    row.appendChild(refs.zoomLabel)
+    row.appendChild(makeButton(ICONS.zoomIn, 'Zoom in', () => {
+      actions.zoomIn()
+      refresh()
+    }))
+    row.appendChild(makeButton(ICONS.reset, 'Reset to default view', () => {
+      actions.resetZoom()
+      refresh()
+    }))
+  }
 
   /* ------------------------------------------------------------------ */
   /* Top bar: document context + document-level actions                 */
@@ -716,28 +238,8 @@ function buildToolbar(actions: PreviewActions): {
   }
 
   /* ------------------------------------------------------------------ */
-  /* Left rail: sheet navigation + sidebar toggles                      */
+  /* Left rail: content-side auxiliary navigation                       */
   /* ------------------------------------------------------------------ */
-
-  if (actions.sheets) {
-    const sheets = actions.sheets
-    addRailGroup(leftRail, () => {
-      const { wrapper, row } = makeGroup('Sheets')
-      leftRail.appendChild(wrapper)
-      const seg = makeSegmented<string>(
-        'Sheet',
-        sheets.sheets.map((name) => ({ label: name, value: name })),
-        sheets.activeSheet,
-        (name) => {
-          sheets.switchSheet(name)
-          refresh()
-        },
-        true
-      )
-      refs.sheetsSeg = seg
-      row.appendChild(seg.el)
-    })
-  }
 
   if (actions.thumbnails) {
     const thumbnails = actions.thumbnails
@@ -757,31 +259,15 @@ function buildToolbar(actions: PreviewActions): {
 
   /* ------------------------------------------------------------------ */
   /* Right rail: how the content is seen — zoom, fit, rotate, page     */
-  /* flow, fullscreen and the image lens                                */
+  /* flow and fullscreen. (Image zoom + the lens live in the bottom     */
+  /* "Magnifier" controller so images stay visually clean.)             */
   /* ------------------------------------------------------------------ */
 
-  if (actions.canZoom) {
+  if (actions.canZoom && !actions.lens) {
     addRailGroup(rightRail, () => {
       const { wrapper, row } = makeGroup('Zoom')
       rightRail.appendChild(wrapper)
-      row.appendChild(makeButton(ICONS.zoomOut, 'Zoom out', () => {
-        actions.zoomOut()
-        refresh()
-      }))
-      if (refs.zoomLabel === undefined) refs.zoomLabel = makeButton('', 'Current zoom — click to reset to the default view', () => {
-        actions.resetZoom()
-        refresh()
-      }, { chip: true })
-      refs.zoomLabel.dataset.lastZoom = ''
-      row.appendChild(refs.zoomLabel)
-      row.appendChild(makeButton(ICONS.zoomIn, 'Zoom in', () => {
-        actions.zoomIn()
-        refresh()
-      }))
-      row.appendChild(makeButton(ICONS.reset, 'Reset to default view', () => {
-        actions.resetZoom()
-        refresh()
-      }))
+      addZoomControls(row)
     })
   }
 
@@ -891,44 +377,30 @@ function buildToolbar(actions: PreviewActions): {
     })
   }
 
-  if (actions.lens) {
-    const lens = actions.lens
-    addRailGroup(rightRail, () => {
-      const { wrapper, row } = makeGroup('Lens')
-      rightRail.appendChild(wrapper)
-
-      const magnification = makeSegmented<number>(
-        'Lens magnification',
-        lens.magnificationOptions.map((value) => ({ label: `${value}x`, value })),
-        lens.magnification,
-        (value) => lens.setMagnification(value)
-      )
-      refs.lensMagSeg = magnification
-
-      const size = makeSegmented<number>(
-        'Lens size',
-        lens.lensSizeOptions.map((value) => ({ label: `${value}px`, value })),
-        lens.lensSize,
-        (value) => lens.setLensSize(value)
-      )
-      refs.lensSizeSeg = size
-
-      const stacked = (title: string, seg: SegmentedResult<number>): void => {
-        const { wrapper: line, row: lineRow } = makeGroup(title)
-        lineRow.appendChild(seg.el)
-        row.appendChild(line)
-      }
-
-      stacked('Magnification', magnification)
-      stacked('Size', size)
-    })
-  }
-
   if (rightRail.childElementCount === 0) rightRail.style.display = 'none'
 
   /* ------------------------------------------------------------------ */
-  /* Bottom bar: page navigation                                        */
+  /* Bottom bar: content-specific navigation & tools                    */
   /* ------------------------------------------------------------------ */
+
+  /* Sheets — spreadsheet tabs live in the bottom region (like a desktop
+     spreadsheet app) as horizontal pills; narrow workbooks scroll. */
+  if (actions.sheets) {
+    const sheets = actions.sheets
+    const { wrapper, row } = makeGroup('Sheets')
+    bottom.appendChild(wrapper)
+    const seg = makeSegmented<string>(
+      'Sheet',
+      sheets.sheets.map((name) => ({ label: name, value: name })),
+      sheets.activeSheet,
+      (name) => {
+        sheets.switchSheet(name)
+        refresh()
+      }
+    )
+    refs.sheetsSeg = seg
+    row.appendChild(seg.el)
+  }
 
   if (actions.pages) {
     const pages = actions.pages
@@ -979,6 +451,54 @@ function buildToolbar(actions: PreviewActions): {
       pages.nextPage()
       refresh()
     }))
+  }
+
+  /* Image tools — bottom-centered controller for the image magnifier and, for
+     images, the zoom cluster. The lens lives nowhere else in the chrome, so the
+     image surface stays clean and the values (magnification / lens size / zoom
+     %) always stay visible. Simple caption + segmented pills, normal flow. */
+  if (actions.lens) {
+    const lens = actions.lens
+    const { wrapper, row } = makeGroup('Magnifier')
+    wrapper.classList.add('pf-group--center')
+    bottom.appendChild(wrapper)
+
+    const magnification = makeSegmented<number>(
+      'Lens magnification',
+      lens.magnificationOptions.map((value) => ({ label: `${value}x`, value })),
+      lens.magnification,
+      (value) => lens.setMagnification(value)
+    )
+    refs.lensMagSeg = magnification
+    const magPair = document.createElement('div')
+    magPair.className = 'pf-pair'
+    const magLabel = document.createElement('span')
+    magLabel.className = 'pf-pair__label'
+    magLabel.textContent = 'Magnification'
+    magPair.append(magLabel, magnification.el)
+    row.appendChild(magPair)
+
+    row.appendChild(makeDivider())
+
+    const size = makeSegmented<number>(
+      'Lens size',
+      lens.lensSizeOptions.map((value) => ({ label: `${value}px`, value })),
+      lens.lensSize,
+      (value) => lens.setLensSize(value)
+    )
+    refs.lensSizeSeg = size
+    const sizePair = document.createElement('div')
+    sizePair.className = 'pf-pair'
+    const sizeLabel = document.createElement('span')
+    sizeLabel.className = 'pf-pair__label'
+    sizeLabel.textContent = 'Lens size'
+    sizePair.append(sizeLabel, size.el)
+    row.appendChild(sizePair)
+
+    if (actions.canZoom) {
+      row.appendChild(makeDivider())
+      addZoomControls(row)
+    }
   }
 
   if (bottom.childElementCount === 0) bottom.style.display = 'none'

@@ -144,38 +144,6 @@ export const ICONS = {
 >
   <path d="m9 18 6-6-6-6" />
 </svg>`,
-  'chevron-up': `<!-- @license lucide-static v0.460.0 - ISC -->
-<svg
-  class="lucide lucide-chevron-up"
-  xmlns="http://www.w3.org/2000/svg"
-  width="24"
-  height="24"
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="2"
-  stroke-linecap="round"
-  stroke-linejoin="round"
-  aria-hidden="true"
->
-  <path d="m18 15-6-6-6 6" />
-</svg>`,
-  'chevron-down': `<!-- @license lucide-static v0.460.0 - ISC -->
-<svg
-  class="lucide lucide-chevron-down"
-  xmlns="http://www.w3.org/2000/svg"
-  width="24"
-  height="24"
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="2"
-  stroke-linecap="round"
-  stroke-linejoin="round"
-  aria-hidden="true"
->
-  <path d="m6 9 6 6 6-6" />
-</svg>`,
   'arrow-up': `<!-- @license lucide-static v0.460.0 - ISC -->
 <svg
   class="lucide lucide-arrow-up"
@@ -356,23 +324,6 @@ export const ICONS = {
 >
   <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2" />
 </svg>`,
-  'panel-left': `<!-- @license lucide-static v0.460.0 - ISC -->
-<svg
-  class="lucide lucide-panel-left"
-  xmlns="http://www.w3.org/2000/svg"
-  width="24"
-  height="24"
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="2"
-  stroke-linecap="round"
-  stroke-linejoin="round"
-  aria-hidden="true"
->
-  <rect width="18" height="18" x="3" y="3" rx="2" />
-  <path d="M9 3v18" />
-</svg>`,
   'maximize': `<!-- @license lucide-static v0.460.0 - ISC -->
 <svg
   class="lucide lucide-maximize"
@@ -411,41 +362,6 @@ export const ICONS = {
   <path d="M3 16h3a2 2 0 0 1 2 2v3" />
   <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
 </svg>`,
-  'ellipsis': `<!-- @license lucide-static v0.460.0 - ISC -->
-<svg
-  class="lucide lucide-ellipsis"
-  xmlns="http://www.w3.org/2000/svg"
-  width="24"
-  height="24"
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="2"
-  stroke-linecap="round"
-  stroke-linejoin="round"
-  aria-hidden="true"
->
-  <circle cx="12" cy="12" r="1" />
-  <circle cx="19" cy="12" r="1" />
-  <circle cx="5" cy="12" r="1" />
-</svg>`,
-  'x': `<!-- @license lucide-static v0.460.0 - ISC -->
-<svg
-  class="lucide lucide-x"
-  xmlns="http://www.w3.org/2000/svg"
-  width="24"
-  height="24"
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="2"
-  stroke-linecap="round"
-  stroke-linejoin="round"
-  aria-hidden="true"
->
-  <path d="M18 6 6 18" />
-  <path d="m6 6 12 12" />
-</svg>`,
   'copy': `<!-- @license lucide-static v0.460.0 - ISC -->
 <svg
   class="lucide lucide-copy"
@@ -481,23 +397,6 @@ export const ICONS = {
   <path d="M3 12h15a3 3 0 1 1 0 6h-4" />
   <polyline points="16 16 14 18 16 20" />
   <line x1="3" x2="10" y1="18" y2="18" />
-</svg>`,
-  'search': `<!-- @license lucide-static v0.460.0 - ISC -->
-<svg
-  class="lucide lucide-search"
-  xmlns="http://www.w3.org/2000/svg"
-  width="24"
-  height="24"
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="2"
-  stroke-linecap="round"
-  stroke-linejoin="round"
-  aria-hidden="true"
->
-  <circle cx="11" cy="11" r="8" />
-  <path d="m21 21-4.3-4.3" />
 </svg>`,
   'layout-grid': `<!-- @license lucide-static v0.460.0 - ISC -->
 <svg
@@ -535,9 +434,9 @@ export const ICONS = {
   <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
 </svg>`,
-  'sun': `<!-- @license lucide-static v0.460.0 - ISC -->
+  'eye': `<!-- @license lucide-static v0.460.0 - ISC -->
 <svg
-  class="lucide lucide-sun"
+  class="lucide lucide-eye"
   xmlns="http://www.w3.org/2000/svg"
   width="24"
   height="24"
@@ -549,19 +448,12 @@ export const ICONS = {
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  <circle cx="12" cy="12" r="4" />
-  <path d="M12 2v2" />
-  <path d="M12 20v2" />
-  <path d="m4.93 4.93 1.41 1.41" />
-  <path d="m17.66 17.66 1.41 1.41" />
-  <path d="M2 12h2" />
-  <path d="M20 12h2" />
-  <path d="m6.34 17.66-1.41 1.41" />
-  <path d="m19.07 4.93-1.41 1.41" />
+  <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+  <circle cx="12" cy="12" r="3" />
 </svg>`,
-  'moon': `<!-- @license lucide-static v0.460.0 - ISC -->
+  'eye-off': `<!-- @license lucide-static v0.460.0 - ISC -->
 <svg
-  class="lucide lucide-moon"
+  class="lucide lucide-eye-off"
   xmlns="http://www.w3.org/2000/svg"
   width="24"
   height="24"
@@ -573,7 +465,10 @@ export const ICONS = {
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+  <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+  <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
+  <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
+  <path d="m2 2 20 20" />
 </svg>`,
 } as const
 

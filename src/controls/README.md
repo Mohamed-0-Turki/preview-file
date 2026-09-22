@@ -11,17 +11,19 @@ opt into.
 | Module | Content |
 | --- | --- |
 | `types.ts` | The capability contract: `PreviewAdapter`, `PreviewActions`, and each control group (`pages`, `fit`, `rotate`, `zoom`, `sheets`, `text`, `singlePage`, `thumbnails`, `lens`, `download`, `fullscreen`). **This is the contract every renderer implements.** |
-| `toolbar.ts` | `mountControls(container, actions)` — DOM build of the Liquid Glass chrome: `.pf-controls` → `.pf-top` / `.pf-body` / `.pf-bottom`, body = `[.pf-rail--left] [.pf-body__middle] [.pf-rail--right]`. `buildToolbar` returns a `{ root, stageHost, cleanup }`; `mountControls` moves the renderer's stage (subtree untouched) into the middle slot. Groups: **File** (top bar, right: Download), **Mode** (Preview/Code), **Text** (copy / word-wrap), **Sheet** + **Thumbnails** (left rail), **Zoom** / **Fit** / **Rotate** / **View** / **Lens** (right rail), **Pages** (bottom bar). Empty regions are `display: none`. No overflow **⋯** menu: bars scroll, rails reflow under the stage ≤ 760 px. Keyboard accessibility: roving tabindex, `radiogroup`, `aria-pressed`. Live page / zoom % / rotation sync. |
-| `download.ts` | `downloadBlob(blob, filename)` — programmatic download helper. |
+| `toolbar.ts` | `mountControls(container, actions)` — DOM build of the Liquid Glass chrome: `.pf-controls` → `.pf-top` / `.pf-body` / `.pf-bottom`, body = `[.pf-rail--left] [.pf-body__middle] [.pf-rail--right]`. `buildToolbar` returns a `{ root, stageHost, cleanup }`; `mountControls` moves the renderer's stage (subtree untouched) into the middle slot. Groups: **File** (top bar, right: Download), **Mode** (Preview/Code), **Text** (copy / word-wrap), **Thumbnails** (left rail, the only left-rail group today), **Zoom** / **Fit** / **Rotate** / **View** (right rail; image zoom is excluded there), **Sheets** / **Pages** / **Magnifier** (bottom bar — sheet tabs for Excel/CSV, page navigation for paginated docs, and the bottom-centered image magnifier + zoom controller). Empty regions are `display: none`. No overflow **⋯** menu: bars scroll, rails reflow under the stage ≤ 760 px. Keyboard accessibility: roving tabindex, `radiogroup`, `aria-pressed`. Live page / zoom % / rotation sync. |
+| `ui.ts` | Pure DOM primitives shared by `buildToolbar`: `makeButton`, `makeSegmented`, `makeGroup`, `makeDivider`, `iconEl`, plus the `SegmentedResult<T>` type. |
+| `glass-styles.ts` | The chrome stylesheet + injection: `GLASS_CSS`, `GLASS_STYLE_ID`, `ensureGlassStyles()`. |
 | `index.ts` | Barrel: `mountControls`, `downloadBlob`, all capability types. |
 
 ## Adding a new toolbar control
 
 1. Define the capability interface in `types.ts` (e.g. `TextControls`).
 2. Implement it on a renderer's `PreviewAdapter`.
-3. Add the corresponding control group in `toolbar.ts` — top bar for actions,
-   left/right rails for grouped tools, bottom bar for state that reads live
-   page/zoom values.
+3. Add the corresponding control group in `toolbar.ts` — top bar for document
+   context/actions, right rail for how-the-content-is-seen tools, bottom bar for
+   content navigation and content-specific tools (pages, sheet tabs, the image
+   magnifier), left rail for content-side auxiliary toggles.
 
 Because the chrome is *derived* from the adapter, renderers never build their own
 controls — adding a capability in the renderer is all that's needed for it to appear.
@@ -32,8 +34,17 @@ Every chrome surface is an **in-flow flex sibling** of the stage inside
 `.pf-body` — no `position: sticky/fixed`, no overlays, no z-index on controls.
 Containers are split into panes (rails | middle) on wide surfaces and a column
 (stage first) on narrow ones, so controllers can never cover preview content.
-This is what lets an archive's nested preview keep its whole chrome visible
-without colliding with the archive's own navigation.
+
+## Placement rules
+
+- **Top** — document context + once-per-session actions (File, Mode, Text, Download).
+- **Bottom** — content navigation & content-specific tools: sheet tabs (Excel/CSV),
+  page navigation (paginated docs), and the image **Magnifier** controller
+  (magnification + lens size + zoom), centered via `.pf-group--center`.
+- **Right** — how the content is seen: Fit, Rotate, View/Fullscreen, and Zoom for
+  non-image content. Image zoom is deliberately excluded (`canZoom && !lens`) so it
+  appears only in the bottom Magnifier, keeping the image surface clean.
+- **Left** — content-side auxiliary navigation (e.g. thumbnails); the only group here today.
 
 ## Styling
 

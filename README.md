@@ -25,7 +25,7 @@ A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, 
 | Code | `.js`, `.tsx`, `.py`, `.json`, `.hbs`, `.ps1`, `.cshtml`, `.tf`, … any file with an extension or name Monaco recognizes — all **91** Monaco languages, plus filenames like `Dockerfile`, `Gemfile`, `tsconfig.json` | Read-only Monaco editor: syntax highlighting, folding, line numbers, zoom, copy, word-wrap | Monaco (CDN, lazy) |
 | Markdown | `.md`, `.markdown`, `.mkd`, `.mdwn`, … | GitHub-style rendered document (tables, task lists, highlighted fenced code) with a **Preview ⇄ Code** toggle | Built-in (`marked`, lazy) |
 | Images | `.jpg`, `.png`, `.gif`, `.webp`, `.svg`, `.avif`, `.bmp`, `.apng` | Zoom/fit, inspection loupe, rotate | Built-in |
-| Archive | `.zip`, `.zipx`, `.7z`, `.rar`, `.cab`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz`, `.tar.xz`, `.txz`, `.tar.zst`, `.tzst`, `.gz`, `.bz2`, `.xz`, `.zst`, `.ar`, `.deb`, `.cpio` | Two-pane file explorer: folders, breadcrumbs, back/forward/up/root, per-file download, password unlock; opening a file previews it (with that file's own chrome) inside the right pane | Built-in (`@zip.js/zip.js`, `fflate`, `7z-wasm`) |
+| Archive | `.zip`, `.zipx`, `.7z`, `.rar`, `.cab`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz`, `.tar.xz`, `.txz`, `.tar.zst`, `.tzst`, `.gz`, `.bz2`, `.xz`, `.zst`, `.ar`, `.deb`, `.cpio` | Single-pane structure explorer: folders, breadcrumbs, back/forward/up/root, per-file download, password unlock; selecting a file highlights its row only (it never opens a nested preview) | Built-in (`@zip.js/zip.js`, `fflate`, `7z-wasm`) |
 
 Unsupported or oversized files render a retriable error card (with a Download button) inside the container instead of breaking your layout. Detection is table-driven from one shared format descriptor (`src/archives/formats.ts`), so any future archive type is added in that table plus one provider case — no MIME special-casing. RAR and CAB files can be browsed (and their single and extracted members opened/downloaded) thanks to 7-Zip's decoders embedded via `7z-wasm`, but *creating* them is not possible here and they were verified by signature.
 
@@ -300,26 +300,25 @@ Markdown file is previewed.
 
 ---
 
-## Archive preview
+## Archives: explorer-only browser
 
-ZIP, ZIPX, TAR and the whole compressed-TAR family open as an in-place file browser:
-`.tar.gz`/`.tgz`/`.tar.bz2`/`.tbz`/`.tar.xz`/`.txz`/`.tar.zst`/`.tzst` decompress to a
-browsable TAR, bare `.gz`/`.bz2`/`.xz`/`.zst` streams expose a single inner file, and
-`.7z`, `.rar`, `.cab`, `.ar`/`.deb` and `.cpio` archives list their contents the same
-way. Extraction runs in the browser via 7-Zip (`7z-wasm`), archive parsing for TAR/AR/
-CPIO is hand-rolled, and Zip/fflate cover the rest. The archive's own navigation UI
-renders inside the preview stage, while the outer toolbar keeps its **File → Download**
-action for saving the *original* archive.
+ZIP, ZIPX, TAR and the whole compressed-TAR family open as an in-place structure
+explorer: `.tar.gz`/`.tgz`/`.tar.bz2`/`.tbz`/`.tar.xz`/`.txz`/`.tar.zst`/`.tzst`
+decompress to a browsable TAR, bare `.gz`/`.bz2`/`.xz`/`.zst` streams expose a single
+inner file, and `.7z`, `.rar`, `.cab`, `.ar`/`.deb`, `.cpio` … list their contents the
+same way. Extraction runs in the browser via 7-Zip (`7z-wasm`), archive parsing for
+TAR/AR/CPIO is hand-rolled, and Zip/fflate cover the rest. The archive's own explorer
+UI renders inside the preview stage, while the outer toolbar keeps its **File**
+→ **Download** action for saving the *original* archive.
 
-- **Folders & files** — the archive is listed like a file manager in a dedicated left
-  tree pane: directories first, virtualized rows for large archives, size column,
-  per-file Download button, and **back / forward / up / root** navigation with
-  clickable breadcrumbs. The right pane shows an empty-state until you open a file.
-- **Preview inside** — clicking a file pipes its bytes through the normal `preview()`
-  pipeline, so a `.pdf`, `.md`, `.cs`, `.png` … in an archive opens with that file's full
-  toolbar (zoom, pages, download of that inner file) **inside the right pane**, and
-  back/forward/navigating away tears the inner preview down automatically. Symbolic and
-  hard links show a note with their target instead of recursing.
+- **Folders & files** — the listing looks like a file manager: directories first,
+  virtualized rows for large archives, size column, per-file Download button, and
+  **back / forward / up / root** navigation with clickable breadcrumbs. Selecting a file
+  merely highlights its row; archives are explorer-only and never open a nested preview.
+- **Explorer-only selection** — clicking a file merely highlights its row
+  (`.pf-arc-row--cur` + `aria-current`); it never opens a nested preview, so the
+  explorer and the outer chrome never share space. Symbolic and hard links show a
+  note with their target instead of recursing.
 - **Password-protected archives** — encrypted ZIP entries decrypt once the password is
   entered in the unlock bar (ZIP AES first, then ZipCrypto); encrypted `.7z`/`.rar`
   members extract through 7-Zip with the same password. Two shapes are handled: most
@@ -334,7 +333,7 @@ action for saving the *original* archive.
 
 ## The chrome & previewer capabilities
 
-After a successful render, `preview()` mounts a **multi-side control chrome** inside the preview container: `.pf-controls` → `.pf-top` / `.pf-body` / `.pf-bottom`, with the body a row of `[left rail] [stage] [right rail]`. Every surface is an in-flow flex sibling of the stage — nothing is sticky, fixed or an overlay, so controllers can never cover the content (this is what lets a file opened *inside an archive* mount its own full chrome without overlapping the archive's navigation). Only the controls the active previewer actually implements appear; empty regions collapse away:
+After a successful render, `preview()` mounts a **multi-side control chrome** inside the preview container: `.pf-controls` → `.pf-top` / `.pf-body` / `.pf-bottom`, with the body a row of `[left rail] [stage] [right rail]`. Every surface is an in-flow flex sibling of the stage — nothing is sticky, fixed or an overlay, so controllers can never cover the content. Only the controls the active previewer actually implements appear; empty regions collapse away:
 
 **Top bar** — document context + once-per-session actions:
 
@@ -345,20 +344,23 @@ After a successful render, `preview()` mounts a **multi-side control chrome** in
 
 **Left rail** —
 
-- **Sheet** — sheet tabs (Excel, CSV)
-- **Thumbnails** — toggle (PDF, Word, PowerPoint)
+- **Thumbnails** — toggle (PDF, Word, PowerPoint) — unused today; self-hides when no
+  renderer implements it (see ARCHITECTURE.md → "Thumbnails")
 
 **Right rail** —
 
-- **Zoom** — zoom in/out, actual size, live % chip
+- **Zoom** — zoom in/out, actual size, live % chip (*documents & spreadsheets and
+  text; images get their zoom in the bottom Magnifier controller instead*)
 - **Fit** — fit width / fit page
 - **Rotate** — clockwise / counter-clockwise / exact-degree input / reset (PDF, PowerPoint, images)
 - **View** — continuous ↔ single page; **Fullscreen**
-- **Lens** — inspection loupe (images)
 
-**Bottom bar** — live document state:
+**Bottom bar** — live content navigation & tools:
 
+- **Sheets** — spreadsheet sheet tabs (Excel, CSV), like a desktop spreadsheet app
 - **Pages** — previous / next / go-to-page (PDF, Word, PowerPoint)
+- **Magnifier** — bottom-centered image controller: **Magnification** + **Lens
+  size** pill pairs with the zoom cluster (images only)
 
 There is **no overflow ⋯ menu**: the top/bottom bars scroll horizontally and the
 rails wrap on narrow surfaces, so every control stays reachable on every screen.
@@ -367,17 +369,18 @@ arrow keys, `aria-pressed` toggles, visible focus rings), uses ≥ 38 px touch
 targets on coarse pointers, hides group labels ≤ 480 px, and honors
 `prefers-reduced-motion`.
 
-### Archives: two-pane explorer
+### Archives: explorer-only browser
 
-Opening an archive renders a split explorer instead of a single list: the **left
-tree pane** owns all archive chrome (back / forward / up / root navigation,
-breadcrumbs, format badge, the virtualized entry list with sizes and per-file
-download, and a footer with counts); the **right pane** hosts the nested preview
-of whichever file you open, and shows an empty-state placeholder when nothing is
-open. The nested file mounts through the normal `preview()` pipeline — its own
-chrome lives entirely inside the right pane, a flex sibling of the tree, so the
-two control surfaces never overlap. On phones the tree becomes a slide-in drawer
-with an always-visible "show file list" toggle in the pane.
+Opening an archive renders a single-pane **structure explorer** instead of a
+list: `.pf-arc-tree` owns all archive chrome — back / forward / up / root
+navigation, breadcrumbs, format badge, the virtualized entry list with sizes and
+per-file download, and a footer with counts. **Selecting a file highlights the
+row only** (`.pf-arc-row--cur` + `aria-current`); it never opens a nested
+preview, so the explorer and the outer chrome never share space. Password-
+protected archives boot into a dedicated **Liquid Glass unlock card** — lock
+icon, hint, password field with a show/hide toggle, Unlock + Cancel, and inline
+error/loading states; while locked the listing, breadcrumbs and footer counts
+are hidden so no metadata leaks until a valid password is accepted.
 
 ---
 

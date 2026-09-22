@@ -105,10 +105,14 @@ References: [`docs/templates/CustomPreviewer.ts`](templates/CustomPreviewer.ts) 
 - **Tabular data** (virtualized rows): build on `createVirtualTable` from
   `src/renderers/virtual-table.ts`.
 - **Interactive image** (zoom/pan/loupe): build on `src/renderers/interaction/`.
-- **Archive browsing** (recursive inner-file previews): build on `previewSource` from
-  the `RenderContext` passed into `render()`, and let the archive's own chrome live in
-  a peer flex pane so nested controls can never overlap it (see
-  [ADR-0014](adr/0014-viewer-redesign.md)).
+- **Archive browsing** (structure explorer): build a single-pane browser like
+  `src/renderers/archive.ts` — folders navigate, file selection stays
+  highlight-only, and per-entry download goes through the provider. Do **not**
+  mount a nested preview from an archive: keep it explorer-only so the
+  explorer's chrome and the outer top/bottom/rail chrome can never share space
+  (see [ADR-0014](adr/0014-viewer-redesign.md)). Renderers that genuinely need a
+  nested preview use `previewSource` from the `RenderContext` and keep each
+  chrome in a peer flex pane.
 
 ## Adding capabilities vs. breaking conventions
 

@@ -51,7 +51,7 @@ Detection is driven by a single descriptor table rather than scattered MIME fixe
   `x.txt.gz` → `x.txt`.
 - `allArchiveMimeTypes()` / `isArchiveMimeType()` / `archiveFormatLabel()` — the same
   table feeds the previewer and default exclusion of `application/x-archive` (the
-  archive sidebar's own result type).
+  archive explorer's own result type).
 
 ## Choosing an implementation
 

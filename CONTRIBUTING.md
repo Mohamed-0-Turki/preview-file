@@ -66,7 +66,7 @@ The full design lives in [ARCHITECTURE.md](ARCHITECTURE.md).
 - Per-container state `WeakMap` pattern → `createRenderState` in
   `src/renderers/render-state.ts`.
 - Paged-document layout (scale/fit/single-page/current-page) → only via
-  `createPagedDocController` in `src/renderers/docview.ts` (PDF & Word).
+  `createPagedDocController` in `src/renderers/docview.ts` (PDF, Word, PowerPoint).
 
 ## Known (accepted) limits
 

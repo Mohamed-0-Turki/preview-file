@@ -1,5 +1,5 @@
 export { mountControls } from './toolbar.js'
-export { downloadBlob } from './download.js'
+export { downloadBlob } from '../utils/index.js'
 export type {
   FitControls,
   FullscreenControls,

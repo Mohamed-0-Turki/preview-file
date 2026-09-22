@@ -35,11 +35,16 @@ column:
   The renderer's stage moves, DOM subtree untouched, into the middle slot
   (the old code appended it after the right rail — a real ordering bug caught
   and fixed here).
-  - Left rail: **Sheets** (stacked segmented) and **Thumbnails**.
-  - Right rail: **Zoom** (out / % chip / in / actual-size), **Fit** (width /
-    page / actual), **Rotate** (ccw / degree input / cw / reset), **View**
-    (single/continuous + fullscreen), **Lens**.
-- `.pf-bottom` — **Pages** (prev / page input / total / next).
+  - Left rail: **Thumbnails** (the only left-rail group today; sheet tabs moved
+    to the bottom bar).
+  - Right rail: **Zoom** (out / % chip / in / actual-size — non-image content
+    only), **Fit** (width / page / actual), **Rotate** (ccw / degree input /
+    cw / reset), **View** (single/continuous + fullscreen). Images never get a
+    rail zoom/lens group; both live in the bottom **Magnifier** controller.
+- `.pf-bottom` — **Sheets** (Excel/CSV tabs, stacked → horizontal pills), **Pages**
+  (prev / page input / total / next), and for images the **Magnifier** controller
+  (bottom-centered `.pf-group--center`): **Magnification** + **Lens size** pill
+  pairs with the zoom cluster.
 
 Empty regions get `display: none` (no empty bars). There is **no overflow ⋯
 menu**: groups overflow naturally — the top/bottom bars scroll horizontally, the
@@ -49,9 +54,11 @@ rails wrap on narrow surfaces — so nothing is ever hidden behind a menu.
 
 Every chrome surface is an in-flow flex sibling of the stage. Nothing is
 `position: sticky`, `fixed`, or an overlay; no z-index is set on controls. Two
-control surfaces can therefore *never* overlap content or each other — including
-when a renderer nests a full second preview via `context.previewSource`
-(archives). This is the architectural invariant the previous revision lacked.
+control surfaces can therefore *never* overlap content or each other. Renderers
+that nest a full second preview via `context.previewSource` keep each chrome in
+its own flex pane; the archive renderer, however, is explorer-only and never
+nests — see below. This is the architectural invariant the previous revision
+lacked.
 
 ### Liquid Glass light palette only
 
@@ -74,22 +81,28 @@ markdown, word, pdf, presentation, csv, excel, archive). Per-format search
 modules (`text-search.ts`, `monaco-find.ts`, `pdf-search.ts`, `table-search.ts`)
 are deleted.
 
-### Archive: professional two-pane explorer
+### Archive: single-pane structure explorer (no nested preview)
 
-`src/renderers/archive.ts` is rewritten as a split explorer:
+`src/renderers/archive.ts` is rewritten as an **explorer-only** browser with a
+polished password gate:
 
-- **Left pane** (`.pf-arc-tree`, 264px) owns *all* archive chrome: back /
-  forward / up / root navigation, breadcrumbs, format badge, a virtualized entry
-  list (folder/file icons, sizes, per-file download, selected row
-  `aria-current`), and a footer with folder/file counts.
-- **Right pane** (`.pf-arc-pane`) hosts the nested preview (`.pf-arc-host`)
-  inside a canvas; when nothing is open an empty-state placeholder shows. The
-  nested file's own full chrome mounts inside this pane — a flex sibling of the
-  tree — so the two control surfaces are structurally incapable of overlapping.
-- **Mobile (≤ 767px):** the tree becomes a slide-in drawer (the pane fills the
-  stage), and the pane gains an always-visible `.pf-arc-mobilebar` with a
-  "show file list" toggle — the toggle never hides behind the stack and never
-  overlaps the nested preview's chrome.
+- **Single pane** (`.pf-arc-tree`) owns *all* archive chrome: back / forward /
+  up / root navigation, breadcrumbs, format badge, a virtualized entry list
+  (folder/file icons, sizes, per-file download, selected row `aria-current`),
+  and a footer with folder/file counts.
+- **Selecting a file only highlights the row** (`.pf-arc-row--cur`,
+  `aria-selected`) — it never mounts a nested preview, so the explorer and the
+  outer top/bottom/rail chrome structurally can never share space. The outer
+  toolbar's **Download** remains the archive's only content action; `RenderContext
+  previewSource` is deliberately unused here (other renderers still nest freely).
+- **Password gate (Liquid Glass card).** Encrypted archives boot into a
+  `.pf-arc-lock` overlay spanning the whole explorer with a `.pf-arc-lockcard`:
+  lock icon, title, hint, password field with a show/hide toggle (eye/eye-off),
+  an Unlock primary button (spinner while validating) + Cancel ghost button
+  (Escape also cancels), and inline `role=alert` error states. While locked, the
+  listing, breadcrumbs, badge and footer counts are cleared and inert — no
+  metadata (names/sizes) leaks before `provider.unlock(password)` accepts. A
+  wrong password re-flags the field and re-selects the input.
 
 ### Responsive + accessibility baselines
 
@@ -101,9 +114,12 @@ are deleted.
 
 ## Consequences
 
-- **Positive.** Zero-overlap is structural, not a z-index anecdote: the archive
-  smoke test mounts a nested preview and asserts its host lives inside
-  `.pf-arc-pane` and never under the tree. One palette, one chrome, no hidden
+- **Positive.** Zero-overlap is structural, not a z-index anecdote: the smoke
+  suite drives the real preview pipeline in a DOM-stub — asserting sheets land in
+  the bottom bar (not the left rail), image zoom/lens land in the bottom
+  Magnifier (not the right rail), archive file selection stays highlight-only
+  (no nested `.pf-root` in the stage), and the password modal hides every row,
+  crumb, badge and count until a valid unlock. One palette, one chrome, no hidden
   controls; the codebase sheds seven search modules and the entire theme
   controller.
 - **Cost/watch items.**

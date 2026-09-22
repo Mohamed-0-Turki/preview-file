@@ -73,7 +73,7 @@ getRenderer()         src/renderers/registry → Renderer (or error card)
         ▼
 renderer.render()     src/renderers/*      → DOM + PreviewAdapter | void     (DOM, lazy engines)
         ▼
-mountControls()       src/controls/toolbar → two-bar chrome (top + document bar), capability-driven
+mountControls()       src/controls/toolbar → multi-side chrome (top + document bar + rails), capability-driven
         ▼
 activePreviews        src/preview.ts       → teardown registered per container
 ```

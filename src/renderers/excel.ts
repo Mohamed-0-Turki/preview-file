@@ -98,6 +98,7 @@ export class ExcelRenderer implements Renderer {
     function rebuildTable(): void {
       table.destroy()
       table = buildTable()
+      stage.appendChild(table.viewport)
       table.setScale(scale)
     }
 

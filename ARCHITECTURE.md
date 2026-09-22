@@ -39,8 +39,9 @@ renderer.render()       src/renderers/*.ts         → DOM + PreviewAdapter (opt
 `preview.ts` calls `renderer.render(container, result, options, context)`, passing a
 `RenderContext { previewSource, clearPreview }` so a renderer can recursively preview a
 secondary source. This keeps the dependency direction strict — pipeline stages may
-never import `preview.ts`. The Archive renderer uses it to open files *inside* an
-archive with the full normal pipeline.
+never import `preview.ts`. Renderers that nest a second source consume it; the
+Archive renderer intentionally does not (it is an explorer-only, nested-preview-free
+view).
 
 ## Module map
 
@@ -85,7 +86,7 @@ src/
     legacy-fallback.ts Shared "Preview unavailable" card (Word + Presentation fallbacks)
     docview.ts         Shared "paged document" stage + PagedDocController (PDF + Word + PowerPoint)
     virtual-table.ts   Shared virtualized table (Excel + CSV share it)
-    archive.ts         Two-pane archive explorer (tree | nested preview) + detect→unlock→browse gate
+    archive.ts         Single-pane archive structure explorer (folders browse, files select-only) + password gate
     interaction/       Shared pointer/wheel interaction helpers (magnifier, zoomable)
   controls/            Multi-side chrome, download helper, capability types
     toolbar.ts         mountControls(): .pf-controls top/body/bottom with left+right rails + stage slot
@@ -197,21 +198,28 @@ A renderer returns `void` (or `undefined`) for a plain, non-interactive view —
 `[.pf-rail--left] [.pf-body__middle] [.pf-rail--right]`, and `mountControls`
 moves the renderer's stage — DOM subtree untouched — into the middle slot.
 Every surface is an **in-flow flex sibling** of the stage: nothing is sticky,
-fixed or an overlay, so controllers can never cover the content. This is the
-structural guarantee that lets a file opened *inside an archive* mount its own
-full chrome without overlapping the archive's navigation (each chrome lives in a
-separate flex pane).
+fixed or an overlay, so controllers can never cover the content. Renderers that
+nest a full second preview (via `RenderContext.previewSource`) keep each chrome
+in its own flex pane; the archive renderer, however, is an explorer-only view
+and never nests — content controls live on the outer chrome or in the
+explorer's single pane.
 
 - **Top bar** (`.pf-top`) — file context (icon + ellipsized name + format
   badge), **Mode** (Preview ⇄ Code), **Text** (copy / word-wrap), a spacer, and
   **Download** pinned right.
-- **Left rail** — **Sheet** (Excel/CSV) and **Thumbnails**.
-- **Right rail** — **Zoom** (out / % chip / in / actual-size), **Fit** (width /
-  page / actual), **Rotate** (ccw / degree input / cw / reset), **View**
-  (continuous ↔ single + **Fullscreen**), **Lens**.
-- **Bottom bar** (`.pf-bottom`) — **Pages** (prev / page input / total / next).
-  Empty regions get `display: none`, so a PDF pins its pages to the bottom while
-  a text file shows just the top bar.
+- **Left rail** — **Thumbnails** only (unused today; self-hides when absent).
+  Sheet tabs no longer live here — they moved to the bottom bar.
+- **Right rail** — **Zoom** (out / % chip / in / actual-size) for *non-image*
+  content, **Fit** (width / page / actual), **Rotate** (ccw / degree input /
+  cw / reset), **View** (continuous ↔ single + **Fullscreen**). Images never get
+  a rail zoom/lens group — both live in the bottom **Magnifier** controller so
+  the image surface stays clean.
+- **Bottom bar** (`.pf-bottom`) — **Sheets** (Excel/CSV tabs, like a desktop
+  spreadsheet app), **Pages** (prev / page input / total / next), and for images
+  the **Magnifier** controller (bottom-centered `.pf-group--center`):
+  **Magnification** + **Lens size** pill pairs plus the zoom cluster. Empty
+  regions get `display: none`, so a PDF pins its pages to the bottom, a
+  spreadsheet pins its sheet tabs, and an image pins its magnifier.
 - **No overflow menu.** There is no **⋯** collapse; top/bottom bars scroll
   horizontally and the rails reflow below the stage on narrow surfaces, so every
   control is always reachable.
@@ -223,12 +231,16 @@ separate flex pane).
 - Styling is injected as one `#pf-glass-styles` `style` element from
   `mountControls` — a `pf-*` classnames namespace, scoped to the container, no
   shadow DOM or external styles.
-- **Archives.** The archive renderer (`src/renderers/archive.ts`) is itself a
-  two-pane explorer: the left `.pf-arc-tree` pane owns all archive chrome
-  (back/forward/up/root, breadcrumbs, format badge, virtualized rows, footer
-  counts), and the right `.pf-arc-pane` hosts a nested `preview()` via
-  `RenderContext.previewSource` when a file is opened. On mobile the tree becomes
-  a slide-in drawer and the pane gains an always-visible "show file list" toggle.
+- **Archives.** The archive renderer (`src/renderers/archive.ts`) is a
+  single-pane **archive structure explorer** — folders browse with
+  back/forward/up/root, breadcrumbs and a format badge; a virtualized listing
+  shows folder/file rows with per-file download buttons; **selecting a file only
+  highlights the row** (`.pf-arc-row--cur` + `aria-current`/`aria-selected`) —
+  it never opens a nested preview, so the outer chrome (top/bottom/rails) and the
+  explorer never share space. Password-protected archives render a dedicated
+  Liquid Glass unlock card (lock icon, hint, password field with show/hide,
+  Unlock + Cancel, error/loading states); while locked, the listing, breadcrumbs
+  and footer counts are hidden so no metadata leaks before a valid password.
 - Accessibility: segmented controls are `radiogroup` with roving tabindex +
   arrow keys; toggles expose `aria-pressed`; focus-visible rings everywhere;
   `prefers-reduced-motion` respected; coarse-pointer targets are ≥ 38 px.
@@ -252,7 +264,7 @@ Because the toolbar is *derived* from the adapter, adding a new control is: (1) 
 
 `activePreviews` (a `WeakMap<HTMLElement, cleanup>`) records a per-container cleanup: unmount controls + `renderer.destroy(container)`. `clearPreview()` invokes it, bumps the generation, and empties the container. Containers never leak: after `clearPreview()` the `WeakMap` entry is dropped.
 
-## Archive reading & nested preview
+## Archive reading & the explorer
 
 Archives are read behind one interface in `src/archives/`:
 `ArchiveProvider { requiresPassword(); unlock(password); list(); read(path); encrypted; isLocked(); dispose() }`.
@@ -289,21 +301,21 @@ Adding a format = one table row + one provider case; no MIME special-casing anyw
   `Module.wasmBinary`, so no `.wasm` asset fetch ever happens — dev servers cannot
   403/404 it and bundlers cannot re-resolve it (`configureArchiveWasm({ locateFile })`
   opts a consumer into hosting the file externally instead).
-- **The Archive renderer** (`src/renderers/archive.ts`) is a two-pane explorer: the
-  left tree pane owns all archive chrome (back/forward/up/root, breadcrumbs, format
-  badge, virtualized rows with sizes and per-file download, footer counts), and the
-  right pane hosts the nested preview. Encrypted archives boot into a full-screen
-  locked prompt over both panes and never initialize the tree — no metadata (names,
-  sizes, breadcrumbs) is rendered behind the dialog; Cancel keeps the archive locked
-  with a Retry affordance. It recursively previews an inner file via the `RenderContext`
-  that `preview.ts` injects into `render()`, so a `.pdf`/`.md`/`.cs`/`.png` in an
-  archive opens with that format's normal chrome — but the nested chrome is confined
-  to the right pane, a flex sibling of the tree, so the two control surfaces can
-  never overlap (the library's no-overlay invariant). A session counter + rAF-paint
-  guard means a slow inner `previewSource()` resolving after the user navigated away
-  is silently dropped, and `destroy()`/`clearPreview` tear down the nested preview.
-  Since the pipeline is depth-agnostic, archives-of-archives recurse naturally through
-  the same bridge.
+- **The Archive renderer** (`src/renderers/archive.ts`) is a single-pane
+  **structure explorer**: one `.pf-arc-tree` owns all archive chrome
+  (back/forward/up/root, breadcrumbs, format badge, virtualized rows with sizes
+  and per-file download, footer counts). Folders navigate; **selecting a file
+  only highlights the row** — it never mounts a nested preview (the
+  outer top/bottom/rail chrome plus renderer stages still support nesting via
+  `RenderContext.previewSource` for other renderers, but the archive deliberately
+  does not use it). Encrypted archives boot into a dedicated Liquid Glass unlock
+  card (lock icon, title, hint, password field with show/hide toggle, Unlock
+  spinner + Cancel, red-border error states) and never initialize the listing —
+  rows, breadcrumbs, badge and footer counts are cleared and inert while locked,
+  so no metadata (names, sizes, structure) leaks behind the dialogs; Cancel and
+  Escape dismiss without opening the archive. A session counter + rAF-paint guard
+  drops stale paint work if the user navigates away mid-flight, and
+  `destroy()`/`clearPreview` tear the explorer down.
 
 ## Rendering philosophy
 
@@ -332,7 +344,7 @@ Limitations to be aware of:
 2. **Result type** — return a stable `result.type` and a self-describing `data` (add a discriminator in `src/previewers/result-types.ts` if you want helpers).
 3. **Renderer** — implement `Renderer` (`canRender`, `render` → `PreviewAdapter | void`, `destroy`) and call `registerRenderer(Class)`.
 4. **Controls** — return the relevant `PreviewAdapter` capabilities from `render`; the toolbar picks them up automatically.
-5. **Nested sources** — if the renderer previews another source (archives), consume the optional `RenderContext` argument instead of importing `preview.ts`, and tear the nested preview down in `destroy()`.
+5. **Nested sources** — if the renderer previews another *secondary* source, consume the optional `RenderContext` argument instead of importing `preview.ts`, and tear the nested preview down in `destroy()`. (The archive renderer deliberately does not nest — it keeps file selection highlight-only.)
 
 ## Verification
 

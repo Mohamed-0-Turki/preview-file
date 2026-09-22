@@ -13,8 +13,10 @@ real previewer/renderer, consider updating its template here too.
 
 ## How to use
 
-1. Copy `template.ts` to `src/previewers/markdown.ts` / `src/renderers/markdown.ts`
-   (replace `markdown` with your format; follow the existing class/file naming).
+1. Copy `CustomPreviewer.ts` to `src/previewers/<format>.ts` and `CustomRenderer.ts`
+   to `src/renderers/<format>.ts` (replace the `Markdown` example class with your
+   format; follow the existing class/file naming). Markdown itself is now built-in, so
+   pick a format that is not already previewed.
 2. Fill in the `???` placeholders, delete the instructional comments.
 3. Carry out the registration steps listed at the bottom of each template.
 4. Run `npm run typecheck && npm run lint && npm run build`.
