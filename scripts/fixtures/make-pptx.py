@@ -510,6 +510,14 @@ PICTURE = f"""<p:pic><p:nvPicPr><p:cNvPr id="46" name="Swatch"/><p:cNvPicPr><a:p
 <p:spPr><a:xfrm flipH="1"><a:off x="{emu(10.5)}" y="{emu(1.4)}"/><a:ext cx="{emu(6.0)}" cy="{emu(4.0)}"/></a:xfrm>
 <a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:ln w="19050"><a:solidFill><a:srgbClr val="1F2328"/></a:solidFill></a:ln></p:spPr></p:pic>"""
 
+# A picture with no `a:ln` at all. The bordered swatch above cannot catch a
+# default stroke being invented for pictures, because it asks for one; this one
+# must come out with no border.
+PICTURE_PLAIN = f"""<p:pic><p:nvPicPr><p:cNvPr id="53" name="Plain swatch"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>
+<p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+<p:spPr><a:xfrm><a:off x="{emu(17.5)}" y="{emu(12.3)}"/><a:ext cx="{emu(3.0)}" cy="{emu(2.0)}"/></a:xfrm>
+<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>"""
+
 CONNECTOR = f"""<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="47" name="Arrow"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>
 <p:spPr><a:xfrm flipV="1"><a:off x="{emu(10.5)}" y="{emu(6.0)}"/><a:ext cx="{emu(6.0)}" cy="{emu(2.4)}"/></a:xfrm>
 <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>
@@ -524,6 +532,32 @@ STACK_B = f"""<p:sp><p:nvSpPr><p:cNvPr id="49" name="Stack over"/><p:cNvSpPr/><p
 <p:spPr><a:xfrm><a:off x="{emu(13.0)}" y="{emu(9.6)}"/><a:ext cx="{emu(5.0)}" cy="{emu(3.0)}"/></a:xfrm>
 <a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="F5A623"><a:alpha val="60000"/></a:srgbClr></a:solidFill></p:spPr></p:sp>"""
 
+# A custom geometry written the way plenty of producers emit one: `a:path` with
+# no `w`/`h`. The coordinates are in the path's own space, so a renderer that
+# assumes the unit box without dividing by the path size draws this triangle
+# thousands of times too large -- its stroke then escapes the shape box and
+# crosses the slide. Both forms are here so the one that carries the guide
+# dimensions keeps asserting the scaled result.
+CUSTGEOM_NO_WH = f"""<p:sp><p:nvSpPr><p:cNvPr id="51" name="Custom geometry"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+<p:spPr><a:xfrm><a:off x="{emu(17.5)}" y="{emu(4.2)}"/><a:ext cx="{emu(5.0)}" cy="{emu(3.0)}"/></a:xfrm>
+<a:custGeom><a:avLst/><a:gdLst/><a:pathLst><a:path>
+<a:moveTo><a:pt x="10800" y="0"/></a:moveTo>
+<a:lnTo><a:pt x="21600" y="21600"/></a:lnTo>
+<a:lnTo><a:pt x="0" y="21600"/></a:lnTo>
+<a:close/></a:path></a:pathLst></a:custGeom>
+<a:solidFill><a:srgbClr val="E8F0FE"/></a:solidFill>
+<a:ln w="19050"><a:solidFill><a:srgbClr val="1F2328"/></a:solidFill></a:ln></p:spPr></p:sp>"""
+
+CUSTGEOM_WITH_WH = f"""<p:sp><p:nvSpPr><p:cNvPr id="52" name="Custom geometry sized"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+<p:spPr><a:xfrm><a:off x="{emu(17.5)}" y="{emu(7.4)}"/><a:ext cx="{emu(5.0)}" cy="{emu(3.0)}"/></a:xfrm>
+<a:custGeom><a:avLst/><a:gdLst/><a:pathLst><a:path w="21600" h="21600">
+<a:moveTo><a:pt x="10800" y="0"/></a:moveTo>
+<a:lnTo><a:pt x="21600" y="21600"/></a:lnTo>
+<a:lnTo><a:pt x="0" y="21600"/></a:lnTo>
+<a:close/></a:path></a:pathLst></a:custGeom>
+<a:solidFill><a:srgbClr val="FFF4E5"/></a:solidFill>
+<a:ln w="19050"><a:solidFill><a:srgbClr val="1F2328"/></a:solidFill></a:ln></p:spPr></p:sp>"""
+
 SLIDE4 = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
 <p:cSld name="Compositing">
@@ -534,9 +568,12 @@ SLIDE4 = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 {GRAD_RECT}
 {OUTER_GROUP}
 {PICTURE}
+{PICTURE_PLAIN}
 {CONNECTOR}
 {STACK_A}
 {STACK_B}
+{CUSTGEOM_NO_WH}
+{CUSTGEOM_WITH_WH}
 {txbox(50, "Legend", emu(17.5), emu(9.0), emu(8.0), emu(3.0), [para(run("Blue circle is authored first, so the amber one blends on top.", size="1200", color="57606A"))], anchor="t")}
 </p:spTree></p:cSld>
 <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>

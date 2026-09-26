@@ -295,8 +295,13 @@ export async function runParseRender(lines) {
   head('8')
   {
     const pics = [...walkShapes(pres.slides[3].shapes)].filter((s) => s.kind === 'picture')
-    ok(pics.length === 1, 'one picture in the deck', String(pics.length))
-    const img = boxes[3].querySelector('img')
+    // Two: `Swatch` asks for a border and `Plain swatch` does not, so the deck can
+    // tell an authored stroke apart from a defaulted one.
+    ok(pics.length === 2, 'both pictures in the deck', String(pics.length))
+    // Looked up by name rather than by position, so adding a picture cannot make
+    // this quietly assert about a different one.
+    const swatchBox = [...boxes[3].querySelectorAll('.py-ooxml-shape')].find((n) => n.dataset['pfName'] === 'Swatch')
+    const img = swatchBox?.querySelector('img') ?? null
     ok(!!img, 'the picture drew an img element')
     ok(!!img?.src.startsWith('blob:'), 'the image src is an object URL', (img?.src ?? '').slice(0, 20))
     ok((img?.naturalWidth ?? 0) > 0, 'the image decoded', `${img?.naturalWidth}x${img?.naturalHeight}`)
@@ -440,6 +445,181 @@ export async function runParseRender(lines) {
         : strut.map((row) => `row=${row.style.fontSize} runs=${[...row.querySelectorAll('span')]
           .filter((s) => s.style.fontSize && !s.style.userSelect)
           .map((s) => s.style.fontSize).join('/')}`).join(' '))
+  }
+
+  /* ---- 9b-2. custom geometry is bounded by its own shape ------------------- */
+  head('9b-2')
+  {
+    /* `a:path/@w` and `@h` declare the space a custom geometry is drawn in, and
+     * both are optional. When they were read as "already normalised", a producer
+     * that omits them left the coordinates in their authoring units (21600 here);
+     * the painter multiplies a unit-box path by the shape's size, so the shape came
+     * out ~21,000x too large, its stroke left the shape's own viewBox — the
+     * overlay is deliberately `overflow:visible` so effects can reach past the box
+     * — and drew black diagonals across the whole slide over the text.
+     *
+     * The assertion is the shape's own containment rather than a number, because
+     * that is the property that broke: any coordinate outside the box reaches the
+     * page, whether it is 21,000x out or 3% out. */
+    const overlays = boxes.flatMap((b) =>
+      [...b.querySelectorAll('svg')]
+        .map((svg) => ({
+          svg,
+          box: (svg.getAttribute('viewBox') ?? '').split(/\s+/).map(Number),
+          paths: [...svg.querySelectorAll('path')],
+        }))
+        .filter((o) => o.box.length === 4 && Number.isFinite(o.box[2]) && o.paths.length > 0)
+    )
+    ok(overlays.length > 0, 'the deck has geometry overlays to check', String(overlays.length))
+
+    const escaped = []
+    for (const { box, paths } of overlays) {
+      for (const node of paths) {
+        const d = node.getAttribute('d') ?? ''
+        // `d` is only ever coordinate pairs, so every other number is a radius or
+        // flag and is skipped by taking the values at even indices.
+        const nums = (d.match(/-?[\d.]+(?:e-?\d+)?/g) ?? []).map(Number)
+        const xs = nums.filter((_, i) => i % 2 === 0)
+        const ys = nums.filter((_, i) => i % 2 === 1)
+        if (xs.length === 0) continue
+        // A roundRect legitimately overshoots by nothing, but a stroke's own width
+        // is centred on the outline, so the tolerance is a fraction of a point.
+        const slack = 1
+        if (
+          Math.min(...xs) < -slack ||
+          Math.min(...ys) < -slack ||
+          Math.max(...xs) > box[2] + slack ||
+          Math.max(...ys) > box[3] + slack
+        ) {
+          escaped.push(`box=${box[2].toFixed(0)}x${box[3].toFixed(0)} d=${d.slice(0, 44)}`)
+        }
+      }
+    }
+    ok(escaped.length === 0, 'no geometry path escapes the shape it belongs to',
+      escaped.join(' | '))
+
+    /* The two triangles on the compositing slide are the same path, authored once
+     * with `w`/`h` and once without. A missing extent has to be inferred from the
+     * coordinates, so the two must land on the same path data — which also pins
+     * the inferred space to the declared one rather than merely "small enough". */
+    const triangleFor = (name) => {
+      const box = [...boxes[3].querySelectorAll('[data-pf-name]')].find((n) => n.dataset['pfName'] === name)
+      return box?.querySelector('path')?.getAttribute('d') ?? ''
+    }
+    const sized = triangleFor('Custom geometry sized')
+    const unsized = triangleFor('Custom geometry')
+    ok(sized !== '' && unsized !== '', 'the fixture has both forms of the custom path',
+      `sized=${sized ? 'yes' : 'missing'} unsized=${unsized ? 'yes' : 'missing'}`)
+    ok(unsized !== '' && unsized === sized,
+      'a custom path without w/h resolves to the same geometry as one with them',
+      `${unsized} vs ${sized}`)
+  }
+
+  /* ---- 9b-3. a shape with no line has no border --------------------------- */
+  head('9b-3')
+  {
+    /* An absent `a:ln` means no outline, and the resolution chain used to end on
+     * a solid black 0.75pt line instead, so every text box, picture and shape that
+     * never asked for a border got one. Both halves are asserted — the resolved
+     * model and the computed style — because a fix that only hid the border in
+     * CSS would leave the model still claiming a line, and the next shape that
+     * reads `line` (the geometry overlay, the table borders) would draw it. */
+    const byName = (slideIndex, name) => {
+      const shape = pres.slides[slideIndex].shapes.find((s) => s.name === name)
+      const node = [...boxes[slideIndex].querySelectorAll('[data-pf-name]')]
+        .find((n) => n.dataset['pfName'] === name)
+      return { shape, node }
+    }
+    // The computed width of every side, so a border painted on one edge only is
+    // still caught.
+    const borders = (node) => {
+      if (!node) return null
+      const style = getComputedStyle(node)
+      return ['Top', 'Right', 'Bottom', 'Left'].map((side) => parseFloat(style[`border${side}Width`]))
+    }
+    const unbordered = (label, slideIndex, name) => {
+      const { shape, node } = byName(slideIndex, name)
+      ok(shape?.line.fill.type === 'none', `${label} resolves to no line`,
+        `${shape?.line.fill.type} @ ${shape?.line.widthPt}pt`)
+      const widths = borders(node)
+      ok(widths !== null && widths.every((w) => w === 0), `${label} paints no border`,
+        widths ? widths.join('/') : '(not painted)')
+    }
+
+    // 1. A shape with no `a:ln`: `Stack under` is an ellipse with a solid fill and
+    //    no line element. A fill is not a request for a border.
+    unbordered('a shape with no line', 3, 'Stack under')
+
+    // 2. A shape with an explicit `a:ln` still gets it, at the authored width and
+    //    colour — `Orange card` asks for 1.5pt of a brown.
+    {
+      const { shape, node } = byName(0, 'Orange card')
+      const style = node ? getComputedStyle(node) : null
+      ok(shape?.line.fill.type === 'solid', 'an explicit line resolves to a line',
+        `${shape?.line.fill.type} @ ${shape?.line.widthPt}pt`)
+      ok(shape != null && near(shape.line.widthPt, 1.5, 0.01), 'the authored width survives',
+        `${r2(shape?.line.widthPt)}pt`)
+      const width = style ? parseFloat(style.borderTopWidth) : 0
+      // 1.5pt lands on 2 device pixels at the suite's 96dpi scale, so the
+      // assertion is "a border is painted" rather than an exact pixel count.
+      ok(width > 0, 'an explicit line paints a border', `${width}px`)
+      const colour = style?.borderTopColor ?? ''
+      ok(colour !== '' && colour !== 'rgba(0, 0, 0, 0)' && !/215, 220, 227/.test(colour),
+        'the border is the authored colour, not a default', colour)
+    }
+
+    // 3. A text box with no `a:ln`. `txBox="1"` and no line element: the commonest
+    //    shape in a real deck, and the one that was worst affected.
+    unbordered('a text box with no line', 3, 'Legend')
+    {
+      const { shape } = byName(3, 'Legend')
+      ok(shape?.textBox === true, 'the borderless text box really is a text box', String(shape?.textBox))
+    }
+
+    // 4. A picture with no `a:ln`, against the bordered `Swatch` beside it.
+    unbordered('a picture with no line', 3, 'Plain swatch')
+    {
+      const { shape } = byName(3, 'Plain swatch')
+      ok(shape?.kind === 'picture', 'the borderless picture really is a picture', String(shape?.kind))
+    }
+    {
+      const { shape, node } = byName(3, 'Swatch')
+      const style = node ? getComputedStyle(node) : null
+      ok(shape?.line.fill.type === 'solid', 'the bordered picture keeps its line', String(shape?.line.fill.type))
+      ok((style ? parseFloat(style.borderTopWidth) : 0) > 0, 'and keeps its border',
+        `${style?.borderTopWidth} ${style?.borderTopColor}`)
+    }
+
+    /* The cross-check: no shape anywhere in the deck may end up with a line it
+     * did not author. The authored XML is the evidence, so this cannot pass by the
+     * fixture happening to agree with a wrong default — a shape counts as
+     * undecorated only when its own `spPr` has no `a:ln`, and a placeholder's
+     * inherited style is allowed to give it one. */
+    const decorated = new Set()
+    for (const [i, slide] of pres.slides.entries()) {
+      const xml = await pkg.xml(slide.part)
+      if (!xml) continue
+      for (const sp of xml.getElementsByTagName('*')) {
+        if (sp.localName !== 'sp' && sp.localName !== 'pic' && sp.localName !== 'cxnSp') continue
+        const nodes = [...sp.getElementsByTagName('*')]
+        const label = nodes.find((n) => n.localName === 'cNvPr')?.getAttribute('name') ?? ''
+        const spPr = nodes.find((n) => n.localName === 'spPr')
+        const hasLine = spPr ? [...spPr.children].some((c) => c.localName === 'ln') : false
+        if (hasLine) decorated.add(`${i}:${label}`)
+      }
+    }
+    const undecorated = []
+    for (const [i, slide] of pres.slides.entries()) {
+      for (const shape of slide.shapes) {
+        if (shape.kind === 'group') continue
+        if (decorated.has(`${i}:${shape.name}`)) continue
+        if (shape.line.fill.type === 'none') continue
+        undecorated.push(`${shape.name}=${shape.line.fill.type}@${shape.line.widthPt}`)
+      }
+    }
+    ok(decorated.size > 0, 'the deck has shapes that do author a line', String(decorated.size))
+    ok(undecorated.length === 0, 'no shape is given a line it never declared',
+      undecorated.join(' '))
   }
 
   /* ---- 9c. list-style inheritance is per property ------------------------ */

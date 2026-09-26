@@ -750,7 +750,15 @@ function composeLine(
   if (ref.color) {
     return { line: { ...DEFAULT_LINE, fill: { type: 'solid', color: ref.color } }, lineSource: 'styleRef' }
   }
-  return { line: DEFAULT_LINE, lineSource: 'default' }
+  /* Nothing declared a line, and there is nothing to inherit, so the shape has
+   * no outline — which is what an absent `a:ln` means. `DEFAULT_LINE` is a
+   * *basis* for the other cases (a width with a colour, or a width with no
+   * fill), not a line in its own right: handing it back here painted a 0.75pt
+   * black border on every shape, picture and text box that never asked for one.
+   * The `'default'` source label is the same one an explicit
+   * `<a:ln><a:noFill/></a:ln>` already reports, so the fallback is that same
+   * value: a default width and cap that nothing paints. */
+  return { line: { ...DEFAULT_LINE, fill: NO_FILL }, lineSource: 'default' }
 }
 
 function composeEffects(

@@ -445,9 +445,11 @@ const normalize = (value: number | undefined, fallback: number): number => {
 
 /**
  * Parse `a:custGeom` (and the equivalent inside SmartArt and Word drawings).
- * The path is expressed in the shape's *own* coordinate space — the guide
- * `w`/`h` from `a:path`, not normalised — so it is divided by the path
- * dimensions to land in the same unit box as the presets.
+ *
+ * The path is expressed in its *own* coordinate space — declared by the `w`/`h`
+ * on `a:path` — so it is divided by those dimensions to land in the same unit
+ * box as the presets. Both attributes are optional, so the space is inferred
+ * from the coordinates when one is missing; see {@link normalizePathSpace}.
  */
 export function parseCustomGeometry(custGeom: Element | null | undefined): CustomGeometry | null {
   if (!custGeom) return null
@@ -471,11 +473,12 @@ export function parseCustomGeometry(custGeom: Element | null | undefined): Custo
   for (const path of childrenOf(pathLst, 'path')) {
     const width = attrNumber(path, 'w') ?? 0
     const height = attrNumber(path, 'h') ?? 0
-    const sx = width === 0 ? 1 : 1 / width
-    const sy = height === 0 ? 1 : 1 / height
     const commands: PathCommand[] = []
-    const px = (x: number): number => x * sx
-    const py = (y: number): number => y * sy
+    /* The commands are built in the path's own space and normalised once the
+     * whole path is known, because the space can be inferred from the
+     * coordinates and a per-command scale cannot see the ones after it. */
+    const px = (x: number): number => x
+    const py = (y: number): number => y
     for (const node of childrenOf(path)) {
       switch (node.localName) {
         case 'moveTo': {
@@ -540,7 +543,7 @@ export function parseCustomGeometry(custGeom: Element | null | undefined): Custo
           break
       }
     }
-    if (commands.length > 0) paths.push(commands)
+    if (commands.length > 0) paths.push(normalizePathSpace(commands, width, height))
   }
 
   // `a:avLst` on a custom geometry holds real adjustments the path may not use;
@@ -630,6 +633,34 @@ export function unitPathBounds(path: GeometryPath): { min: Point; max: Point } {
   }
   if (minX === Infinity) return { min: P(0, 0), max: P(1, 1) }
   return { min: P(minX, minY), max: P(maxX, maxY) }
+}
+
+/**
+ * Map a path drawn in its own coordinate space onto the unit box.
+ *
+ * The declared `w`/`h` are authoritative when present. Both are optional
+ * attributes, though, and a producer that omits them still draws in *some*
+ * space — 21600, 12700 and 100000 all occur in the wild. Reading a missing `w`
+ * as "already normalised" left those coordinates in their authoring units, and
+ * because the painter multiplies a unit-box path by the shape's size they came
+ * out tens of thousands of times too large: the stroke left the shape's own
+ * viewBox and drew across the slide. So an axis with no declared extent is
+ * inferred from the extent of its own coordinates, which puts a path authored
+ * on a 0..N grid into 0..1 while keeping where it sits within that grid —
+ * stretching it to the shape's bounds instead would move a path that
+ * deliberately occupies only part of it. An axis with no extent at all (a
+ * perfectly vertical edge) has nothing to infer from and is left as it is.
+ */
+function normalizePathSpace(commands: GeometryPath, width: number, height: number): GeometryPath {
+  const bounds = unitPathBounds(commands)
+  const reachX = Math.max(Math.abs(bounds.min.x), Math.abs(bounds.max.x))
+  const reachY = Math.max(Math.abs(bounds.min.y), Math.abs(bounds.max.y))
+  const sx = width > 0 ? 1 / width : reachX > 0 ? 1 / reachX : 1
+  const sy = height > 0 ? 1 / height : reachY > 0 ? 1 / reachY : 1
+  if (sx === 1 && sy === 1) return commands
+  // `scalePath` is a plain multiply per axis, so the unit box is the identity
+  // and the scale factors are the size.
+  return scalePath(commands, { width: sx, height: sy })
 }
 
 /**
