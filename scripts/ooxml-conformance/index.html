@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>OOXML conformance</title>
+    <!--
+      The cross-format check imports the package's public entry point, which is the
+      only place the whole dependency graph is loaded at once. A bundler normally
+      rewrites those bare specifiers, so the page has to do it here: without this map
+      `fflate` and `@zip.js/zip.js` fail to resolve and the module never evaluates,
+      which looks like a blank suite rather than a missing import.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "fflate": "/node_modules/fflate/esm/browser.js",
+          "@zip.js/zip.js": "/node_modules/@zip.js/zip.js/index.js",
+          "docx-preview": "/node_modules/docx-preview/dist/docx-preview.mjs",
+          "jszip": "/scripts/ooxml-conformance/jszip-esm.mjs",
+          "xlsx": "/node_modules/xlsx/xlsx.mjs",
+          "marked": "/node_modules/marked/lib/marked.esm.js",
+          "pdfjs-dist": "/node_modules/pdfjs-dist/build/pdf.mjs"
+        }
+      }
+    </script>
+    <style>
+      body {
+        margin: 0;
+        padding: 1rem;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: #14171c;
+        color: #d7dce3;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+      }
+      .pass {
+        color: #7ee08a;
+      }
+      .fail {
+        color: #ff8a80;
+        font-weight: 700;
+      }
+      h1 {
+        font-size: 1rem;
+        margin: 0 0 0.75rem;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "@zip.js/zip.js": "/node_modules/@zip.js/zip.js/index.js",
+          "fflate": "/node_modules/fflate/esm/browser.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <h1>OOXML conformance &mdash; <span id="suite">running</span></h1>
+    <pre id="out">running...</pre>
+    <script>
+      // A headless run that throws looks identical to one that hangs, and
+      // "running..." hides the reason, so module errors are surfaced in the DOM
+      // where `--dump-dom` and a human reader both see them.
+      const show = (prefix, error) => {
+        document.getElementById('out').textContent = `${prefix}: ${error?.stack ?? error}`
+        document.getElementById('suite').textContent = 'crashed'
+      }
+      window.addEventListener('error', (event) => show('ERROR', event.error ?? event.message))
+      window.addEventListener('unhandledrejection', (event) => show('REJECTION', event.reason))
+    </script>
+    <script type="module">
+      import { runParseRender } from './parse-render.js'
+      import { runAdapter } from './adapter.js'
+      import { runAudit } from './audit.js'
+      import { measureCorpus } from './measure.js'
+      import { runFeatures } from './features.js'
+      import { runFormats } from './formats.js'
+      import { setFixtureBase } from './harness.js'
+
+      const lines = []
+      const out = document.getElementById('out')
+      const suite = document.getElementById('suite')
+      /* `?corpus=` lets the audit run against real-world decks that are not part
+         of the repository. The runner serves one directory and passes its entries
+         as a comma-separated list, so the same page works for the committed
+         fixture and for an external corpus. */
+      const corpus = (new URL(location.href).searchParams.get('corpus') ?? '')
+        .split(',')
+        .map((s) => decodeURIComponent(s.trim()))
+        .filter(Boolean)
+      /* `?measure=1` switches the page from pass/fail output to a JSON dump of
+         word boxes. The runner then writes that to a file for the LibreOffice
+         comparison, so the diff is between two measured renders rather than
+         between a render and a hand-written expectation. */
+      /* Generated fixtures are served from `/fixtures/` when the runner was given a
+       * directory, so the page and the generators agree on where they live. */
+      const fixtures = new URL(location.href).searchParams.get('fixtures')
+      if (fixtures) setFixtureBase(`${fixtures}/`)
+      if (new URL(location.href).searchParams.get('measure') === '1') {
+        const decks = await measureCorpus(corpus)
+        out.textContent = JSON.stringify(decks)
+        suite.textContent = `measured ${decks.length} deck(s)`
+        suite.className = 'pass'
+      } else {
+      try {
+        const parse = await runParseRender(lines)
+        const adapter = await runAdapter(lines)
+        const audit = await runAudit(lines, corpus)
+        const features = await runFeatures(lines, corpus)
+        const formats = await runFormats(lines)
+        const total = parse + adapter + audit + features + formats
+        const failed = lines.filter((line) => line.includes('FAIL')).length
+        out.innerHTML = lines
+          .join('\n')
+          .replaceAll('  ok    ', '<span class="pass">  ok    </span>')
+          .replaceAll('  FAIL  ', '<span class="fail">  FAIL  </span>')
+        suite.textContent = failed === 0 ? `${total} checks passed` : `${failed} of ${total} checks FAILED`
+        suite.className = failed === 0 ? 'pass' : 'fail'
+      } catch (error) {
+        show('ERROR', error)
+      }
+      }
+    </script>
+  </body>
+</html>

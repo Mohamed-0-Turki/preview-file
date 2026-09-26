@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+                 xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+                 xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+                 xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+                 xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+                 xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+                 xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0"
+                 xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+                 office:version="1.3"
+                 office:mimetype="application/vnd.oasis.opendocument.presentation">
+  <office:automatic-styles>
+    <style:style style:name="Title1" style:family="text">
+      <style:text-properties fo:font-size="36pt" fo:font-weight="bold" fo:color="#123a63"/>
+    </style:style>
+    <style:style style:name="Subtitle1" style:family="text">
+      <style:text-properties fo:font-size="18pt" fo:color="#4a5a6a"/>
+    </style:style>
+    <style:style style:name="Body1" style:family="text">
+      <style:text-properties fo:font-size="16pt"/>
+    </style:style>
+    <style:style style:name="Small1" style:family="text">
+      <style:text-properties fo:font-size="11pt" fo:color="#6b7885"/>
+    </style:style>
+    <style:style style:name="HeaderFill" style:family="graphic-properties">
+      <style:graphic-properties draw:fill="solid" draw:fill-color="#1f4e79"/>
+    </style:style>
+    <style:style style:name="HeaderText" style:family="text">
+      <style:text-properties fo:font-size="14pt" fo:font-weight="bold" fo:color="#ffffff"/>
+    </style:style>
+  </office:automatic-styles>
+  <office:master-styles>
+    <style:master-page style:name="Standard" style:page-layout-name="PM1"/>
+  </office:master-styles>
+  <office:automatic-styles>
+    <style:page-layout style:name="PM1">
+      <style:page-layout-properties fo:page-width="28cm" fo:page-height="15.75cm"
+                                    fo:margin-top="0cm" fo:margin-bottom="0cm"
+                                    fo:margin-left="0cm" fo:margin-right="0cm"
+                                    fo:print-orientation="landscape"
+                                    style:print-orientation="landscape"/>
+    </style:page-layout>
+  </office:automatic-styles>
+
+  <office:body>
+    <office:presentation>
+
+      <draw:page draw:name="Title" draw:master-page-name="Standard"
+                 presentation:presentation-page-layout-name="AL1">
+        <draw:frame draw:style-name="FrameTitle" svg:width="20cm" svg:height="3cm" svg:x="4cm" svg:y="4cm"
+                    presentation:class="title">
+          <draw:text-box><text:p text:style-name="Title1">Office View Engine</text:p></draw:text-box>
+        </draw:frame>
+        <draw:frame svg:width="20cm" svg:height="2cm" svg:x="4cm" svg:y="7.4cm"
+                    presentation:class="subtitle">
+          <draw:text-box><text:p text:style-name="Subtitle1">A browser-first OOXML rendering pipeline</text:p></draw:text-box>
+        </draw:frame>
+        <draw:rect svg:width="8cm" svg:height="1.1cm" svg:x="4cm" svg:y="10.2cm"
+                   draw:style-name="HeaderFill" draw:text-style-name="HeaderText">
+          <text:p>Parse &#8226; Model &#8226; Layout &#8226; Render</text:p>
+        </draw:rect>
+        <draw:rect svg:width="8cm" svg:height="1.1cm" svg:x="12.6cm" svg:y="10.2cm"
+                   draw:style-name="HeaderFill" draw:text-style-name="HeaderText">
+          <text:p>Fidelity over wrapping</text:p>
+        </draw:rect>
+      </draw:page>
+
+      <draw:page draw:name="Agenda" draw:master-page-name="Standard">
+        <draw:frame svg:width="20cm" svg:height="1.6cm" svg:x="1.5cm" svg:y="1cm"
+                    presentation:class="title">
+          <draw:text-box><text:p text:style-name="Title1">Agenda</text:p></draw:text-box>
+        </draw:frame>
+        <draw:rect svg:width="0.5cm" svg:height="0.5cm" svg:x="1.6cm" svg:y="3.4cm"
+                   draw:style-name="HeaderFill"/>
+        <draw:frame svg:width="20cm" svg:height="1cm" svg:x="2.4cm" svg:y="3.1cm">
+          <draw:text-box><text:p text:style-name="Body1">Package reading: ZIP, relationships, content types</text:p></draw:text-box>
+        </draw:frame>
+        <draw:rect svg:width="0.5cm" svg:height="0.5cm" svg:x="1.6cm" svg:y="4.9cm"
+                   draw:style-name="HeaderFill"/>
+        <draw:frame svg:width="20cm" svg:height="1cm" svg:x="2.4cm" svg:y="4.6cm">
+          <draw:text-box><text:p text:style-name="Body1">Internal document model, renderer agnostic</text:p></draw:text-box>
+        </draw:frame>
+        <draw:rect svg:width="0.5cm" svg:height="0.5cm" svg:x="1.6cm" svg:y="6.4cm"
+                   draw:style-name="HeaderFill"/>
+        <draw:frame svg:width="20cm" svg:height="1cm" svg:x="2.4cm" svg:y="6.1cm">
+          <draw:text-box><text:p text:style-name="Body1">Layout engine: measurement, pagination, grid geometry</text:p></draw:text-box>
+        </draw:frame>
+        <draw:rect svg:width="0.5cm" svg:height="0.5cm" svg:x="1.6cm" svg:y="7.9cm"
+                   draw:style-name="HeaderFill"/>
+        <draw:frame svg:width="20cm" svg:height="1cm" svg:x="2.4cm" svg:y="7.6cm">
+          <draw:text-box><text:p text:style-name="Body1">Asset pipeline and performance budgets</text:p></draw:text-box>
+        </draw:frame>
+      </draw:page>
+
+      <draw:page draw:name="Shapes" draw:master-page-name="Standard">
+        <draw:frame svg:width="20cm" svg:height="1.4cm" svg:x="1.5cm" svg:y="0.8cm"
+                    presentation:class="title">
+          <draw:text-box><text:p text:style-name="Title1">Shape geometry</text:p></draw:text-box>
+        </draw:frame>
+        <draw:rect svg:width="5cm" svg:height="2.6cm" svg:x="1.6cm" svg:y="3cm"
+                   draw:style-name="HeaderFill" draw:text-style-name="HeaderText">
+          <text:p>Rectangle</text:p>
+        </draw:rect>
+        <draw:ellipse svg:width="5cm" svg:height="2.6cm" svg:x="7.4cm" svg:y="3cm"
+                      draw:style-name="HeaderFill" draw:text-style-name="HeaderText">
+          <text:p>Ellipse</text:p>
+        </draw:ellipse>
+        <draw:polygon svg:width="5cm" svg:height="2.6cm" svg:x="13.2cm" svg:y="3cm"
+                       draw:style-name="HeaderFill" draw:text-style-name="HeaderText"
+                       draw:points="0,2.6 2.5,0 5,2.6"/>
+        <draw:custom-shape svg:width="5cm" svg:height="2.6cm" svg:x="1.6cm" svg:y="6.6cm"
+                           draw:style-name="HeaderFill" draw:text-style-name="HeaderText"
+                           draw:type="round-rectangle"/>
+        <draw:polygon svg:width="5cm" svg:height="2.6cm" svg:x="7.4cm" svg:y="6.6cm"
+                       draw:style-name="HeaderFill" draw:text-style-name="HeaderText"
+                       draw:points="0,0 5,0 5,1.2 2.5,1.2 2.5,2.6 0,2.6"/>
+        <draw:line svg:width="5cm" svg:height="1cm" svg:x="13.2cm" svg:y="7.4cm"
+                   draw:style-name="HeaderFill" draw:text-style-name="HeaderText">
+          <text:p>Line connector</text:p>
+        </draw:line>
+        <draw:frame svg:width="24cm" svg:height="1cm" svg:x="2cm" svg:y="10.6cm">
+          <draw:text-box><text:p text:style-name="Small1">Rotation, flip, gradients, strokes and text insets are resolved from DrawingML, not approximated.</text:p></draw:text-box>
+        </draw:frame>
+      </draw:page>
+
+      <draw:page draw:name="Table" draw:master-page-name="Standard">
+        <draw:frame svg:width="20cm" svg:height="1.4cm" svg:x="1.5cm" svg:y="0.8cm"
+                    presentation:class="title">
+          <draw:text-box><text:p text:style-name="Title1">Table</text:p></draw:text-box>
+        </draw:frame>
+        <table:table table:name="Metrics" table:style-name="Tbl1">
+          <table:table-column table:style-name="Tbl1.A" table:number-columns-repeated="4"/>
+          <table:table-row>
+            <table:table-cell table:style-name="Tbl1.A" office:value-type="string">
+              <text:p>Stage</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.A" office:value-type="string">
+              <text:p>Input</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.A" office:value-type="string">
+              <text:p>Output</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.A" office:value-type="string">
+              <text:p>Status</text:p>
+            </table:table-cell>
+          </table:table-row>
+          <table:table-row>
+            <table:table-cell table:style-name="Tbl1.B" office:value-type="string">
+              <text:p>Package</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.B" office:value-type="string">
+              <text:p>bytes</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.B" office:value-type="string">
+              <text:p>parts</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.B" office:value-type="string">
+              <text:p>done</text:p>
+            </table:table-cell>
+          </table:table-row>
+          <table:table-row>
+            <table:table-cell table:style-name="Tbl1.C" office:value-type="string">
+              <text:p>Layout</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.C" office:value-type="string">
+              <text:p>model</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.C" office:value-type="string">
+              <text:p>boxes</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.C" office:value-type="string">
+              <text:p>done</text:p>
+            </table:table-cell>
+          </table:table-row>
+          <table:table-row>
+            <table:table-cell table:style-name="Tbl1.D" office:value-type="string">
+              <text:p>Render</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.D" office:value-type="string">
+              <text:p>boxes</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.D" office:value-type="string">
+              <text:p>DOM</text:p>
+            </table:table-cell>
+            <table:table-cell table:style-name="Tbl1.D" office:value-type="string">
+              <text:p>done</text:p>
+            </table:table-cell>
+          </table:table-row>
+        </table:table>
+      </draw:page>
+
+      <draw:page draw:name="Closing" draw:master-page-name="Standard">
+        <draw:frame svg:width="24cm" svg:height="2cm" svg:x="2cm" svg:y="6cm"
+                    presentation:class="title">
+          <draw:text-box><text:p text:style-name="Title1">Thank you</text:p></draw:text-box>
+        </draw:frame>
+        <draw:frame svg:width="24cm" svg:height="1.4cm" svg:x="2cm" svg:y="8.2cm">
+          <draw:text-box><text:p text:style-name="Subtitle1">Questions, findings, and the roadmap</text:p></draw:text-box>
+        </draw:frame>
+      </draw:page>
+
+    </office:presentation>
+  </office:body>
+</office:document>

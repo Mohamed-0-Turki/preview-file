@@ -5,6 +5,66 @@ This document defines *where* tests should live and *what* each layer warrants, 
 when the harness is introduced the placement is a mechanical decision rather than a
 debate. Status is tracked in [ADR-0010](adr/0010-testing-strategy.md).
 
+## OOXML conformance (implemented, browser-only)
+
+`src/ooxml/` + `src/renderers/ooxml/` ship a conformance suite that runs in a real
+browser against the **built** package:
+
+```bash
+npm run build && npm run test:ooxml
+```
+
+`scripts/ooxml-conformance/` serves `dist/`, `node_modules/` and its own directory over
+loopback, drives headless Chrome, and parses the report out of the DOM (exit code 1 on
+any failure; `CHROME=/path/to/chrome` and `PORT=…` override the defaults). Opening
+`scripts/ooxml-conformance/index.html` in a browser by hand runs the same suite and
+renders the report as text.
+
+The fixture is generated, not committed as a binary blob of record:
+`python3 scripts/fixtures/make-pptx.py` writes `chart-deck.pptx` next to the suite and
+refuses to emit a part that is not well-formed XML, because a malformed fixture makes
+the slide under test render as empty and the deck "pass" while testing nothing.
+
+Five suites:
+
+| Suite | Asserts |
+| --- | --- |
+| `parse-render.js` | the model (EMU geometry, the master → layout → slide placeholder and list-style cascade, chart cache and axes, table cells, notes, backgrounds) and the painting (shape boxes match the model transform, group matrices, rotation, z-order, text runs, bullets, tables, charts, image decoding) |
+| `adapter.js` | the renderer as previews use it: registration, fit and zoom, lazy painting, page navigation, chart baselines, object-URL teardown, the unsupported-format fallback, and that every slide cover is a containing block |
+| `audit.js` | the public `preview()` end to end: lazy painting while scrolling, navigation, object-URL teardown, and the painted counts per deck |
+| `features.js` | that declarations in the XML reach the DOM — alpha, dash presets, shadows, gradients, bullets, line spacing — counted both ways, so a feature that is declared but dropped fails |
+| `formats.js` | that every format the README claims still renders through `preview()`, found by a distinctive string of its own text |
+
+`features.js` is deliberately phrased as an XML → DOM question rather than "does it look
+right". A deck that declares 485 alpha expressions either produces translucent paint or
+it does not, and that does not depend on the substituted font, the viewport or the
+reference renderer. Dash presets are counted with `solid` excluded, because `solid` is a
+request for a continuous line: the corpus declares 276 of them and 2 real patterns, and
+treating the first as the second is how a tally of "278 dashes" becomes a feature nobody
+needed.
+
+### Options
+
+| Variable | Effect |
+| --- | --- |
+| `CORPUS=<dir>` | audit a directory of real-world `.pptx` decks instead of the committed fixture. Third-party decks stay out of the repository. |
+| `FIXTURES=<dir>` | serve a second directory at `/fixtures/`, which is where the generated DOCX, XLSX and ODP fixtures live. Without it those formats are reported as skipped, so the PowerPoint suite stays self-contained on a fresh clone. |
+| `MEASURE=1` | emit a JSON dump of word boxes instead of a pass/fail report, for diffing against a reference render. |
+| `VIRTUAL_TIME=<ms>` | Chrome's virtual time budget. The default is 60 s, which is enough for the committed fixture; a large corpus or a slow machine may need more. |
+
+The full cross-format run is therefore:
+
+```bash
+python3 scripts/fixtures/make-docx.py && python3 scripts/fixtures/make-xlsx.py
+FIXTURES=<where those wrote> npm run build && npm run test:ooxml
+```
+
+It is deliberately *not* a replacement for the harness below. It exists because the
+assertions that matter for this engine are about layout and painting, which need a real
+engine, and because the alternative was a browser harness living in a temp directory.
+Renderers other than PowerPoint are covered only as far as `formats.js` reaches: it
+proves each one still renders, not that it renders correctly.
+
 ## Current smoke layer (today)
 
 - The manual matrix in the playground: PDF / DOCX / XLSX / CSV / text / image ×

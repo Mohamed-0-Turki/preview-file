@@ -1,7 +1,11 @@
 # ADR-0012: Presentation preview via an external DOM/SVG renderer on the paged-document controller
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0015](0015-in-tree-ooxml-engine.md)
 - **Date:** 2026-09-18
+
+> The engine choice here no longer holds. The *architecture* in this ADR still does: slides
+> stay pages on the shared paged-document controller, and legacy formats still fall back.
+> See ADR-0015 for why the renderer became in-tree.
 
 ## Context
 

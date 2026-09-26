@@ -1,7 +1,7 @@
 {
   "name": "@mohamed-0-turki/preview-file",
   "version": "0.1.6",
-  "description": "Browser file preview library for PDF, Word, Excel, PowerPoint, images, CSV, text, and more — framework-agnostic, TypeScript-ready, and easy to integrate.",
+  "description": "Browser file preview library for PDF, Word, Excel, PowerPoint, images, CSV, text, and more \u2014 framework-agnostic, TypeScript-ready, and easy to integrate.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -19,10 +19,12 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "node scripts/generate-7zz-wasm.mjs && node scripts/build-icons.mjs && tsc",
+    "build": "npm run clean && node scripts/generate-7zz-wasm.mjs && node scripts/build-icons.mjs && tsc",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
-    "prepublishOnly": "node scripts/generate-7zz-wasm.mjs && node scripts/build-icons.mjs && npm run typecheck && npm run build && npm run lint"
+    "test:ooxml": "node scripts/ooxml-conformance/run.mjs",
+    "prepublishOnly": "node scripts/generate-7zz-wasm.mjs && node scripts/build-icons.mjs && npm run typecheck && npm run build && npm run lint",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "keywords": [
     "file-preview",
@@ -38,7 +40,6 @@
     "spreadsheet-viewer",
     "spreadsheet-preview",
     "powerpoint-viewer",
-    "pptx-viewer",
     "ppt-viewer",
     "csv-viewer",
     "image-viewer",
@@ -74,7 +75,6 @@
     "fflate": "^0.8.3",
     "marked": "^18.0.13",
     "pdfjs-dist": "^6.3.289",
-    "pptx-viewer": "^0.2.2",
     "xlsx": "^0.18.5"
   }
 }

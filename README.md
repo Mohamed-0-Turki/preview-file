@@ -17,7 +17,7 @@ A dependency-free-by-design, browser-only file preview library. Drop PDF, Word, 
 | PDF | `.pdf` | Rendered pages with real A4 geometry, page shadows, continuous / single-page mode, go-to-page, rotate | pdf.js |
 | Word | `.docx`, `.docm`, `.dotx`, `.dotm` | Paginated document with headings, tables and embedded images | docx-preview |
 | Word (legacy) | `.doc`, `.dot` | In-preview fallback card with a Download button | Binary format not rendered |
-| PowerPoint | `.pptx`, `.pptm`, `.potx`, `.potm`, `.ppsx`, `.ppsm` | Native slide rendering with layout, colors, shapes, charts, tables and embedded images; slides-as-pages navigation, zoom, fit, continuous / single-page mode | pptx-viewer |
+| PowerPoint | `.pptx`, `.pptm`, `.potx`, `.potm`, `.ppsx`, `.ppsm` | Native slide rendering with layout, colors, shapes, charts, tables and embedded images; slides-as-pages navigation, zoom, fit, continuous / single-page mode | in-tree OOXML engine |
 | PowerPoint (legacy / OpenDocument) | `.ppt`, `.pps`, `.pot`, `.odp` | In-preview fallback card with a Download button | Binary / OpenDocument formats not rendered in-browser |
 | Excel | `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.xltx`, `.xltm`, `.xlt` | Sheet tabs, navigation, frozen headers, virtualized grid | SheetJS |
 | CSV | `.csv` | Virtualized table, sheet-style navigation | Built-in (no dependency) |
@@ -688,7 +688,7 @@ registerRenderer(TeamNotesRenderer)
 
 ## Performance notes
 
-- **Lazy loading.** `pdfjs-dist`, `docx-preview`, `xlsx`, `pptx-viewer`, `marked` and Monaco Editor are loaded only when their format is first previewed — Monaco through its AMD build (scripts + workers + CSS) from the configured base URL, `marked` (Markdown) only when a Markdown file is previewed. The demo site's initial bundle never includes them.
+- **Lazy loading.** `pdfjs-dist`, `docx-preview`, `xlsx`, `marked` and Monaco Editor are loaded only when their format is first previewed — Monaco through its AMD build (scripts + workers + CSS) from the configured base URL, `marked` (Markdown) only when a Markdown file is previewed. The demo site's initial bundle never includes them. PowerPoint is parsed and painted by the in-tree OOXML engine, so it adds no library to load at all.
 - **Virtualization.** Excel sheets and large CSV files render as virtualized tables — only the visible rows are in the DOM; 80 000-row CSV files stay responsive.
 - **Independent containers.** `preview()` is container-scoped; multiple previews on one page don't interfere.
 - **Cancellation.** A generation guard makes stale async work inert: calling `clearPreview()` or a new `preview()` on the same container discards in-flight work from the previous call.

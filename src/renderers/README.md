@@ -35,7 +35,8 @@ the nested preview down when navigating. The Archive renderer is intentionally t
 exception: it is explorer-only and does not consume the `RenderContext`.
 
 Heavy engines are loaded **only inside `render()`**: `pdfjs-dist` is dynamic-imported
-(PDF), `docx-preview` (Word), `xlsx` (Excel), `pptx-viewer` (PowerPoint); Monaco Editor
+(PDF), `docx-preview` (Word), `xlsx` (Excel). PowerPoint loads nothing — it is parsed and
+painted in-tree; see [ADR-0015](../../docs/adr/0015-in-tree-ooxml-engine.md); Monaco Editor
 (Code) is loaded lazily through its AMD build — `monaco-loader.ts` injects
 `vs/loader.js` as a classic script, calls `require.config({ baseUrl, paths: { vs } })`
 (which makes the workers and CSS resolve cross-origin), then `require(['vs/editor/editor.main'])`.
@@ -58,7 +59,9 @@ never fetches Monaco.
 | `monaco-types.ts` | Self-contained typing shim for the tiny Monaco surface this package consumes. `monaco-editor` is a devDependency for parity checks only and is never statically imported (see ADR-0013). |
 | `archive-ui.ts` | Shared archive explorer DOM/format helpers used by the Archive renderer: `ROW_HEIGHT`, `formatSize`, `iconEl`, `iconButton`. |
 | `archive-styles.ts` | The Archive renderer's stylesheet + injection: `ARCHIVE_CSS`, `ARCHIVE_STYLE_ID`, `ensureArchiveStyles()`. |
-| `text.ts`, `image.ts`, `csv.ts`, `pdf.ts`, `word.ts`, `excel.ts`, `presentation.ts`, `code.ts`, `archive.ts` | One renderer per result type. |
+| `text.ts`, `image.ts`, `csv.ts`, `pdf.ts`, `word.ts`, `excel.ts`, `code.ts`, `archive.ts` | One renderer per result type. |
+| `presentation/index.ts` | The PowerPoint renderer. Opens the OPC package with `src/ooxml/`, paints slides with `ooxml/render.ts`, and makes each slide a page in the shared paged-document controller. The only PowerPoint file that knows about previews. |
+| `ooxml/` | The in-tree OOXML painter: `render.ts` (slide walker), `paint.ts` (DrawingML → CSS/SVG), `path.ts` (preset/custom geometry), `text.ts`, `table.ts`, `chart.ts`, `assets.ts` (object URLs), `dom.ts`. Knows nothing about previews or the toolbar. |
 
 The Code renderer is registered **before** Text in `index.ts` (its key is the exact
 `text/code` type, so order is defensive — Code's `canRender` is an equality check,

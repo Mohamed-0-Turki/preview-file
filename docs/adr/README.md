@@ -19,9 +19,10 @@ decision changes, write a new ADR that supersedes it.
 | [ADR-0009](0009-pdf-worker-strategy.md) | pdf.js worker loaded by URL (CDN default, configurable), never bundled |
 | [ADR-0010](0010-testing-strategy.md) | Testing: manual playground smoke today, documented path to Vitest + Playwright |
 | [ADR-0011](0011-framework-agnostic-package.md) | Framework-agnostic single package; no monorepo, no framework-specific entry points |
-| [ADR-0012](0012-presentation-preview.md) | Presentation preview: external DOM/SVG renderer (`pptx-viewer`) on the paged-document controller; legacy formats fall back |
+| [ADR-0012](0012-presentation-preview.md) | ~~Presentation preview: external DOM/SVG renderer (`pptx-viewer`)~~ — superseded by ADR-0015 |
 | [ADR-0013](0013-monaco-code-preview.md) | Source-code preview: Monaco Editor loaded lazily from a pinned AMD CDN build (configurable base URL), never bundled |
 | [ADR-0014](0014-viewer-redesign.md) | Viewer redesign: multi-side glass chrome (top/left/right/bottom), zero-overlap guarantee, no search/no dark mode, explorer-only archives |
+| [ADR-0015](0015-in-tree-ooxml-engine.md) | PowerPoint preview: in-tree OOXML parser and painter, no Office-specific dependency; legacy formats still fall back |
 
 ## Status values
 

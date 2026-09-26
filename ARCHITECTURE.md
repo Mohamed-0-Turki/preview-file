@@ -139,7 +139,7 @@ Each renderer is lazy about its heavy dependency:
 - PDF → `await import('pdfjs-dist')`; the worker is *not* bundled. `pdf.worker.mjs` is referenced by URL (`GlobalWorkerOptions.workerSrc`): a version-pinned CDN build by default, overridable via `setPdfWorkerSrc()` or `PreviewOptions.workerSrc` for self-hosted / CSP-locked deployments. This keeps the library free of bundler-specific imports (`?raw`, `?url`, `?worker`) so it resolves identically under Vite, webpack, Rollup, Next.js and vanilla ESM. If the worker URL cannot be loaded, pdf.js falls back to a main-thread fake worker and the preview still renders.
 - Word → `await import('docx-preview')`.
 - Excel → `await import('xlsx')`.
-- Presentation → `await import('pptx-viewer')`. Slides are parsed once via `loadPresentation()` (returns `slideSize` in px + slide models + a `cleanup()`), then rendered to per-slide DOM/SVG with `renderSlideToElement()`. Each slide is a page in the shared paged-document controller, so navigation, zoom, fit and continuous/single-page mode come from `docview.ts`; visible slides are materialized lazily via `IntersectionObserver`, wrapped so a failed slide degrades to an in-slide notice. The host requests `initialFit: 'page'` so a whole slide always fits the container.
+- Presentation → no dynamic import: the OOXML engine is in-tree, so nothing is fetched when a deck is opened. `OfficePackage.open()` reads the OPC container (`src/ooxml/package.ts`), `parsePresentation()` resolves the deck into a model (`src/ooxml/pptx/parse.ts`), and `renderSlide()` paints one slide into DOM/SVG (`src/renderers/ooxml/render.ts`). `PresentationRenderer` (`src/renderers/presentation/index.ts`) is the only part that knows about previews: it opens the package, mounts a `createDocStage`, and makes each slide a page in the shared paged-document controller, so navigation, zoom, fit and continuous/single-page mode come from `docview.ts`. Slides are materialized lazily — on `IntersectionObserver` entry and again on every relayout, so a programmatic page jump paints what it reveals — and a failed slide degrades to an in-slide notice. The host requests `initialFit: 'page'` so a whole slide always fits the container. Legacy `.ppt`/`.pps`/`.pot` and `.odp` still go to the shared fallback notice.
 
 CSV, text and image are dependency-free. Because these imports happen only inside `render()`, a consumer that never opens a PDF never pays for pdf.js.
 
@@ -329,7 +329,11 @@ Word documents are paginated by `docx-preview` using *explicit* breaks only (`w:
 
 ## Presentation rendering (known boundaries)
 
-PowerPoint slides are rendered natively in the browser by `pptx-viewer` (MIT, single `fflate` dependency) against the OOXML package. It covers slide geometry, text (including master/layout default text styles), shapes, images, charts, tables, SmartArt-flattened diagrams, themes, gradients, patterns and embedded fonts.
+PowerPoint slides are rendered natively in the browser by the in-tree OOXML engine (`src/ooxml/` parses, `src/renderers/ooxml/` paints), with no Office-specific third-party library in the dependency tree. It covers slide geometry, text (including the master → layout → slide placeholder and list-style cascade), shapes and preset/custom geometry, images, charts, tables, themes, colour maps, gradients and pictures.
+
+Slides are laid out in one unscaled coordinate space — a 960pt slide fills a 960-unit-wide box — and the paged controller scales the whole stage once, so nothing reflows on zoom. A group that rescales its children (`chExt` ≠ `ext`) is a CSS matrix; text inside a rescaled group is counter-scaled, because PowerPoint resizes the shape but re-wraps the text.
+
+Conformance runs in a real browser against the built package, since the assertions are about layout and painting: `npm run build && npm run test:ooxml`.
 
 Limitations to be aware of:
 

@@ -18,8 +18,8 @@ Read these in order (only the first three are mandatory; the rest are for featur
 3. This file.
 4. The per-layer `README.md` for whatever layer you touch:
    [`src/utils/`](src/utils/README.md), [`src/previewers/`](src/previewers/README.md),
-   [`src/renderers/`](src/renderers/README.md), [`src/controls/`](src/controls/README.md),
-   [`src/sources/`](src/sources/README.md).
+   [`src/ooxml/`](src/ooxml/README.md), [`src/renderers/`](src/renderers/README.md),
+   [`src/controls/`](src/controls/README.md), [`src/sources/`](src/sources/README.md).
 5. `docs/TESTING.md` — testing strategy and where tests should live.
 6. `docs/EXTENDING.md` — extension points and plugin-style integration patterns.
 7. `docs/templates/` — drop-in templates for new previewers/renderers/controls.
@@ -99,7 +99,7 @@ activePreviews        src/preview.ts       → teardown registered per container
 | 5 | **Comments only explain *why***, never restate code. |
 | 6 | **Capability-driven UI:** renderers never build their own controls; return a `PreviewAdapter` and the toolbar renders what you support. |
 | 7 | **Deterministic teardown:** every resource a renderer creates (observers, rAF, workers, dynamic imports) must be released in `destroy()`, registered via `createRenderState().set(container, attachment)`. |
-| 8 | **Lazy engines:** `pdfjs-dist`, `docx-preview`, `xlsx`, `pptx-viewer` are dynamic-imported inside `render()` only — never at module top level. Monaco (Code) is also loaded only inside `render()`, but through its AMD build from a configured base URL (`src/renderers/monaco-loader.ts`), never via a bundler-managed import — see ADR-0013. |
+| 8 | **Lazy engines:** `pdfjs-dist`, `docx-preview`, `xlsx` are dynamic-imported inside `render()` only — never at module top level. Monaco (Code) is also loaded only inside `render()`, but through its AMD build from a configured base URL (`src/renderers/monaco-loader.ts`), never via a bundler-managed import — see ADR-0013. |
 | 9 | **Naming:** file `{format}.ts`, class `{Format}Previewer` / `{Format}Renderer`. |
 | 10 | **No tests to add yet** without reading `docs/TESTING.md` first (harness is not yet installed; expect `npm test` to be absent). |
 
